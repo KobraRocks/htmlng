@@ -16,13 +16,16 @@ Deterministic component-based HTML page generator. AI agents edit component temp
 
 ## Project location
 
-The engine source is at `~/Pi/projects/html-engine/`. Run it with:
+The engine is globally installed. Run commands from any project directory:
 
 ```bash
-npx tsx ~/Pi/projects/html-engine/src/index.ts <command>
+engine <command>
 ```
 
-All commands operate on the **current working directory**, which must contain an `engine.config.yaml` (created by `engine init`).
+To update after code changes:
+```bash
+cd ~/Pi/projects/html-engine && npx tsc
+```
 
 ## Commands
 
