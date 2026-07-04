@@ -35,7 +35,7 @@ const handlers: Record<string, Handler> = {
 
 const HELP = `HTML Engine — deterministic component-based HTML generator
 
-Usage: engine <command> [args]
+Usage: htmlng <command> [args]
 
 Commands:
   init [--name <name>]           Initialize a new project
@@ -89,7 +89,7 @@ export async function run(args: string[]): Promise<void> {
   const handler = handlers[command];
 
   if (!handler) {
-    process.stderr.write(`Unknown command: ${command}\nRun: engine --help\n`);
+    process.stderr.write(`Unknown command: ${command}\nRun: htmlng --help\n`);
     process.exit(1);
   }
 

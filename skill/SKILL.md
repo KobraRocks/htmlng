@@ -1,30 +1,30 @@
 ---
 name: html-engine
 description: >
-  REQUIRED for building and editing static HTML pages via the component-based HTML engine CLI.
+  REQUIRED for building and editing static HTML pages via the component-based HTML htmlng CLI.
   Use when the user asks to create, edit, or render web pages, landing pages, marketing sites,
-  or any HTML output where deterministic component isolation is needed. The engine assembles
+  or any HTML output where deterministic component isolation is needed. The htmlng assembles
   pages from isolated components with scoped CSS — AI agents edit only component templates
   and data files, never raw HTML. Triggers: html engine, render page, create component,
-  edit page, build html, scaffold page, component template, placeholder data, engine render,
-  engine build, engine validate, engine create.
+  edit page, build html, scaffold page, component template, placeholder data, htmlng render,
+  htmlng build, htmlng validate, htmlng create.
 ---
 
 # HTML Engine Skill
 
-Deterministic component-based HTML page generator. AI agents edit component templates and data files; the engine assembles pages with zero risk of collateral damage to other components.
+Deterministic component-based HTML page generator. AI agents edit component templates and data files; the htmlng assembles pages with zero risk of collateral damage to other components.
 
 ## Project location
 
-The engine is globally installed. Run commands from any project directory:
+The htmlng is globally installed. Run commands from any project directory:
 
 ```bash
-engine <command>
+htmlng <command>
 ```
 
 To update after code changes:
 ```bash
-cd ~/Pi/projects/html-engine && npx tsc
+cd ~/Pi/projects/html-htmlng && npx tsc
 ```
 
 ## Commands
@@ -32,47 +32,47 @@ cd ~/Pi/projects/html-engine && npx tsc
 ### Project setup
 
 ```bash
-engine init [--name <name>]           # Initialize a new project
+htmlng init [--name <name>]           # Initialize a new project
 ```
 
 ### Scaffolding
 
 ```bash
-engine create component <name>        # Scaffold a new component
-engine create page <name>             # Scaffold a new page
-engine create data <c> --page <p>     # Scaffold a data file (reads schema, fills keys)
+htmlng create component <name>        # Scaffold a new component
+htmlng create page <name>             # Scaffold a new page
+htmlng create data <c> --page <p>     # Scaffold a data file (reads schema, fills keys)
 ```
 
 ### Rendering (stdout)
 
 ```bash
-engine render component <c> --page <p>  # Render one component's inner HTML
-engine render component <c> --all       # Render component across all pages
-engine render page <p> [--compact]      # Render full HTML page
-engine preview component <c>            # Preview with sample data
+htmlng render component <c> --page <p>  # Render one component's inner HTML
+htmlng render component <c> --all       # Render component across all pages
+htmlng render page <p> [--compact]      # Render full HTML page
+htmlng preview component <c>            # Preview with sample data
 ```
 
 ### Validation
 
 ```bash
-engine validate                        # Validate all pages
-engine validate page <p>              # Validate one page
-engine validate component <c>         # Validate one component
+htmlng validate                        # Validate all pages
+htmlng validate page <p>              # Validate one page
+htmlng validate component <c>         # Validate one component
 ```
 
 ### Build & Diff
 
 ```bash
-engine build [page <p>]               # Write pages to build/ directory
-engine diff [page <p>]                # Show unified diff vs last build
+htmlng build [page <p>]               # Write pages to build/ directory
+htmlng diff [page <p>]                # Show unified diff vs last build
 ```
 
 ### Utility
 
 ```bash
-engine add component <c> --page <p>    # Add component to page
-engine list pages|components|data [<p>] # List resources
-engine watch                           # Watch files and rebuild on change
+htmlng add component <c> --page <p>    # Add component to page
+htmlng list pages|components|data [<p>] # List resources
+htmlng watch                           # Watch files and rebuild on change
 ```
 
 ## Workflow for AI agents
@@ -81,48 +81,48 @@ engine watch                           # Watch files and rebuild on change
 
 ```
 1. Edit data/<page>/<component>.yaml (change heading, subtext, etc.)
-2. engine render component <component> --page <page>
+2. htmlng render component <component> --page <page>
 3. Inspect stdout — confirm the changed content looks correct
 4. If wrong → fix the YAML → re-run step 2
-5. engine render page <page>          (validate full assembly)
-6. engine build                        (write to disk)
+5. htmlng render page <page>          (validate full assembly)
+6. htmlng build                        (write to disk)
 ```
 
 ### Creating a new page
 
 ```
-1. engine create page <name>
+1. htmlng create page <name>
 2. Edit pages/<name>.page.yaml (set title, description, components list)
 3. For each component:
-   a. engine create data <component> --page <name>
+   a. htmlng create data <component> --page <name>
    b. Edit data/<name>/<component>.yaml (fill content)
-   c. engine render component <component> --page <name> (validate)
-4. engine render page <name>           (validate full assembly)
-5. engine build                        (write to disk)
+   c. htmlng render component <component> --page <name> (validate)
+4. htmlng render page <name>           (validate full assembly)
+5. htmlng build                        (write to disk)
 ```
 
 ### Creating a new component
 
 ```
-1. engine create component <name>
+1. htmlng create component <name>
 2. Edit components/<name>.component.html:
    - Template: HTML with {{text:field}}, {{#list:items}}...{{/list:items}}, etc.
-   - CSS (after first ---): scoped styles (engine prefixes with .<name>)
+   - CSS (after first ---): scoped styles (htmlng prefixes with .<name>)
    - Schema (after second ---): JSON with placeholder definitions
-3. engine add component <name> --page <page>
-4. engine create data <name> --page <page>
+3. htmlng add component <name> --page <page>
+4. htmlng create data <name> --page <page>
 5. Edit data/<page>/<name>.yaml
-6. engine render component <name> --page <page>
-7. engine render page <page>
-8. engine build
+6. htmlng render component <name> --page <page>
+7. htmlng render page <page>
+8. htmlng build
 ```
 
 ### Changing global styles
 
 ```
 1. Edit global.css (design tokens or semantic element baselines)
-2. engine render page <page>           (validate cascade)
-3. engine build                        (rebuild all pages)
+2. htmlng render page <page>           (validate cascade)
+3. htmlng build                        (rebuild all pages)
 ```
 
 ## Placeholder types
@@ -155,7 +155,7 @@ project/
   pages/                # *.page.yaml files (title, components list, head, scripts)
   data/                 # <page>/<component>.yaml files (placeholder values)
   assets/               # Static files (images, fonts) — copied to build/
-  build/                # Rendered output (generated by engine build)
+  build/                # Rendered output (generated by htmlng build)
 ```
 
 ## Error handling
@@ -170,8 +170,8 @@ Common errors:
 
 ## Important constraints
 
-- **Never edit `build/` directly** — it's regenerated from source on every `engine build`
-- **Component CSS is auto-scoped** — write `h1 { ... }` and the engine emits `.component-name h1 { ... }`
+- **Never edit `build/` directly** — it's regenerated from source on every `htmlng build`
+- **Component CSS is auto-scoped** — write `h1 { ... }` and the htmlng emits `.component-name h1 { ... }`
 - **Global CSS sets baseline** — `global.css` defines typography, colors, spacing for all semantic elements
 - **Page order determines wrapping** — first component → `<header>`, last (if named `footer`) → `<footer>`, others → `<section id="...">`
 - **Component files are three sections** separated by `---`: template, CSS (optional), JSON schema
