@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Component, Page, PlaceholderValue, ImageValue } from './types.js';
 import { EngineError } from './types.js';
+import { escapeHtml, escapeAttr } from './escape.js';
 import { loadConfig } from './config.js';
 import { parseComponent } from './component.js';
 import { renderTemplate } from './template.js';
@@ -46,7 +47,7 @@ export function renderPage(rootDir: string, pageName: string): string {
     const warnings = validatePageData(comp, data, dataPath);
 
     // Render template
-    const innerHTML = renderTemplate(comp.template, data, allComponents, pageName);
+    const innerHTML = renderTemplate(comp.template, data, allComponents);
 
     renderedComponents.push({ name, html: innerHTML });
   }
@@ -149,7 +150,7 @@ export function renderComponent(rootDir: string, componentName: string, pageName
   const dataPath = join(rootDir, config.paths.data, pageName, `${componentName}.yaml`);
   validatePageData(comp, data, dataPath);
 
-  return renderTemplate(comp.template, data, allComponents, pageName);
+  return renderTemplate(comp.template, data, allComponents);
 }
 
 /**
@@ -190,7 +191,7 @@ export function previewComponent(rootDir: string, componentName: string): string
   const allComponents = new Map<string, Component>();
   allComponents.set(componentName, comp);
 
-  return renderTemplate(comp.template, sampleData, allComponents, 'preview');
+  return renderTemplate(comp.template, sampleData, allComponents);
 }
 
 // ── Helpers ─────────────────────────────────────────────
@@ -206,12 +207,4 @@ function scriptTag(s: { src: string; defer?: boolean; async?: boolean; type?: st
 function indent(html: string, spaces: number): string {
   const prefix = ' '.repeat(spaces);
   return html.split('\n').map((line) => prefix + line).join('\n');
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function escapeAttr(s: string): string {
-  return s.replace(/"/g, '&quot;');
 }
