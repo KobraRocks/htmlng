@@ -1,0 +1,12 @@
+<h1>{{text:heading}}</h1>
+<p>{{text:subtext}}</p>
+{{html:cta}}
+---
+h1 { font-size: 3rem; }
+p { color: var(--text-muted); }
+---
+{
+  "heading": { "type": "text", "required": true, "maxLength": 120 },
+  "subtext": { "type": "text", "required": false, "maxLength": 300 },
+  "cta": { "type": "html", "required": false }
+}

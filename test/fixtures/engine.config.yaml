@@ -1,0 +1,10 @@
+project:
+  name: "test"
+  lang: "en"
+
+build:
+  pretty: true
+
+validation:
+  strict: false
+  requireAltText: true

@@ -1,0 +1,12 @@
+:root {
+  --color-primary: #0066cc;
+  --color-text: #1a1a1a;
+  --color-text-muted: #555;
+  --color-bg: #ffffff;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; color: var(--color-text); }
+h1 { font-size: 2.5rem; font-weight: 700; }
+h2 { font-size: 2rem; font-weight: 600; }
+p { line-height: 1.6; }
+a { color: var(--color-primary); }

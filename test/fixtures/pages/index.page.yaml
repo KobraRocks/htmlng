@@ -1,0 +1,6 @@
+title: "Test Page"
+description: "A test page for the HTML engine"
+components:
+  - hero
+  - features
+  - footer
