@@ -52,7 +52,7 @@ htmlng build                                # write to disk
 | `htmlng move component <c> --page <p> --before\|--after <other>` | Reorder component in page |
 | `htmlng list pages\|components\|data [<p>]` | List resources |
 | `htmlng watch` | Watch files and rebuild on change |
-| `htmlng serve [--port <n>] [--watch]` | Start dev server on build/ directory |
+| `htmlng serve [--port <n>] [--watch]` | Start dev server on build/ directory (--watch enables hot reload) |
 
 ## How It Works
 

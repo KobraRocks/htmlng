@@ -75,7 +75,7 @@ htmlng add component <c> --page <p>    # Add component to page
 htmlng move component <c> --page <p> --before|--after <other>  # Reorder component
 htmlng list pages|components|data [<p>] # List resources
 htmlng watch                           # Watch files and rebuild on change
-htmlng serve [--port <n>] [--watch]    # Start dev server
+htmlng serve [--port <n>] [--watch]    # Start dev server (--watch auto-reloads on file change)
 ```
 
 ## Design tokens
@@ -165,7 +165,7 @@ Only `href` is allowed on `<a>`. No other attributes on any tag. Block-level tag
 ```
 1. Edit design-tokens.yaml (change colors, fonts, spacing)
 2. htmlng build                        (rebuild all pages)
-3. htmlng serve [--watch]              (preview in browser)
+3. htmlng serve --watch                (auto-reload on changes)
 ```
 
 ### Previewing component styling
