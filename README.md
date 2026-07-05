@@ -5,11 +5,10 @@ Component-based static HTML page generator. AI agents edit isolated component te
 ## Install
 
 ```bash
-cd ~/Pi/projects/html-engine
-npm link
+git clone https://github.com/example/htmlng.git
+cd htmlng
+./install.sh
 ```
-
-After source changes, rebuild with `npx tsc`.
 
 ## Quick Start
 
@@ -121,7 +120,7 @@ space-xl: "6rem"        # section spacing
 ## Dev
 
 ```bash
-npm test              # 42 tests
+npm test              # 52 tests
 npm run typecheck     # tsc --noEmit
-npx tsx src/index.ts  # run without building
+npm run dev           # run without building
 ```
