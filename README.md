@@ -37,7 +37,7 @@ htmlng build                                # write to disk
 | Command | Description |
 |---------|------------|
 | `htmlng init [--name <n>]` | Initialize a new project |
-| `htmlng create component <name>` | Scaffold a new component |
+| `htmlng create component <name> [--preset <p>]` | Scaffold a new component (from preset if specified) |
 | `htmlng create page <name>` | Scaffold a new page |
 | `htmlng create data <c> --page <p>` | Scaffold a data file |
 | `htmlng render component <c> --page <p>` | Render component inner HTML to stdout |
@@ -50,7 +50,8 @@ htmlng build                                # write to disk
 | `htmlng diff [page <p>]` | Show unified diff vs last build |
 | `htmlng add component <c> --page <p>` | Add component to page |
 | `htmlng move component <c> --page <p> --before\|--after <other>` | Reorder component in page |
-| `htmlng list pages\|components\|data [<p>]` | List resources |
+| `htmlng save component <c> --as-preset <name>` | Save component as reusable preset |
+| `htmlng list presets` | List available presets |
 | `htmlng watch` | Watch files and rebuild on change |
 | `htmlng serve [--port <n>] [--watch]` | Start dev server on build/ directory (--watch enables hot reload) |
 

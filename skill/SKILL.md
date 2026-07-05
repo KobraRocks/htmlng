@@ -38,9 +38,10 @@ htmlng init [--name <name>]           # Initialize a new project
 ### Scaffolding
 
 ```bash
-htmlng create component <name>        # Scaffold a new component
+htmlng create component <name> [--preset <p>]  # Scaffold from generic or preset
 htmlng create page <name>             # Scaffold a new page
 htmlng create data <c> --page <p>     # Scaffold a data file (reads schema, fills keys)
+htmlng save component <name> --as-preset <p>  # Save component as reusable preset
 ```
 
 ### Rendering (stdout)
@@ -74,6 +75,7 @@ htmlng diff [page <p>]                # Show unified diff vs last build
 htmlng add component <c> --page <p>    # Add component to page
 htmlng move component <c> --page <p> --before|--after <other>  # Reorder component
 htmlng list pages|components|data [<p>] # List resources
+htmlng list presets                   # List available presets
 htmlng watch                           # Watch files and rebuild on change
 htmlng serve [--port <n>] [--watch]    # Start dev server (--watch auto-reloads on file change)
 ```
