@@ -1,6 +1,15 @@
-# htmlng — Deterministic HTML Engine for AI Agents
+# htmlng — HTML Pages AI Agents Can't Break
 
-Component-based static HTML page generator. AI agents edit isolated component templates and data files; the engine assembles pages with zero risk of collateral damage to other components.
+**Edit components. Not pages. Never break a footer again.**
+
+htmlng is a deterministic HTML engine built for AI agents. You edit isolated component templates and YAML data files. The engine assembles pages. Every build is a pure function of source — same inputs, same output, always. Zero risk of an AI edit cascading into collateral damage.
+
+```bash
+htmlng create component hero --preset hero    # scaffold from your design library
+htmlng create data hero --page index          # generate typed content file
+htmlng render page index                      # see the full page before building
+htmlng build && htmlng serve --watch          # ship it, watch it reload
+```
 
 ## Install
 
