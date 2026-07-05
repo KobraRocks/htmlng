@@ -7,20 +7,18 @@ const COMPONENT_TEMPLATE = `<h2>{{text:heading}}</h2>
 <p>{{text:body}}</p>
 ---
 /*
-  Placeholder types:
-  {{text:name}}          Text with inline formatting (<strong>, <em>, <a href>, <code>, <br>)
-  {{html:name}}          Raw HTML (unsanitized)
-  {{image:name}}         <img> element  → data: { src, alt, width?, height?, loading? }
-  {{link:name}}          <a> element    → data: { href, label, class? }
-  {{#list:name}}...{{/list:name}}  Repeated block  → data: array
-    For object items: {{text:field}}    For scalar items: {{text:this}}
-  {{#bool:name}}...{{/bool:name}}  Conditional block → data: true/false
-  {{slot:name}}          Nested component → data: { component, data? }
-*/
----
-/*
  * CSS — styles scoped to .{{name}}
  * Write selectors naturally; the engine prefixes them with .{{name}}
+ *
+ * Placeholder types:
+ *   {{text:name}}          Text with inline formatting (<strong>, <em>, <a href>, <code>, <br>)
+ *   {{html:name}}          Raw HTML (unsanitized)
+ *   {{image:name}}         <img> element  → data: { src, alt, width?, height?, loading? }
+ *   {{link:name}}          <a> element    → data: { href, label, class? }
+ *   {{#list:name}}...{{/list:name}}  Repeated block  → data: array
+ *     For object items: {{text:field}}    For scalar items: {{text:this}}
+ *   {{#bool:name}}...{{/bool:name}}  Conditional block → data: true/false
+ *   {{slot:name}}          Nested component → data: { component, data? }
  */
 ---
 {
@@ -35,28 +33,28 @@ components: []
 `;
 
 const GLOBAL_CSS = `:root {
-  --color-primary: #0066cc;
-  --color-primary-hover: #0052a3;
-  --color-text: #1a1a1a;
-  --color-text-muted: #555;
-  --color-bg: #ffffff;
-  --color-bg-alt: #f5f5f5;
-  --color-border: #e0e0e0;
-  --font-family: system-ui, -apple-system, sans-serif;
-  --font-size-base: 1rem;
-  --font-size-h1: 2.5rem;
-  --font-size-h2: 2rem;
-  --font-size-h3: 1.5rem;
-  --font-size-h4: 1.25rem;
-  --line-height: 1.6;
-  --line-height-heading: 1.2;
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 1rem;
-  --space-lg: 2rem;
-  --space-xl: 4rem;
-  --radius-sm: 4px;
-  --radius-md: 8px;
+  --color-primary: {{primary}};
+  --color-primary-hover: {{primary-hover}};
+  --color-text: {{text}};
+  --color-text-muted: {{text-muted}};
+  --color-bg: {{bg}};
+  --color-bg-alt: {{bg-alt}};
+  --color-border: {{border}};
+  --font-family: {{font-family}};
+  --font-size-base: {{font-size-base}};
+  --font-size-h1: {{font-size-h1}};
+  --font-size-h2: {{font-size-h2}};
+  --font-size-h3: {{font-size-h3}};
+  --font-size-h4: {{font-size-h4}};
+  --line-height: {{line-height}};
+  --line-height-heading: {{line-height-heading}};
+  --space-xs: {{space-xs}};
+  --space-sm: {{space-sm}};
+  --space-md: {{space-md}};
+  --space-lg: {{space-lg}};
+  --space-xl: {{space-xl}};
+  --radius-sm: {{radius-sm}};
+  --radius-md: {{radius-md}};
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -72,6 +70,36 @@ a:hover { color: var(--color-primary-hover); text-decoration: underline; }
 ul, ol { padding-left: 1.5rem; margin-bottom: var(--space-md); }
 li { margin-bottom: var(--space-sm); }
 blockquote { border-left: 3px solid var(--color-border); padding-left: var(--space-md); color: var(--color-text-muted); }
+`;
+
+const DESIGN_TOKENS = `# Design tokens — edit values to customize global styles
+# global.css uses {{name}} placeholders resolved against this file
+
+primary: "#0066cc"
+primary-hover: "#0052a3"
+text: "#1a1a1a"
+text-muted: "#555"
+bg: "#ffffff"
+bg-alt: "#f5f5f5"
+border: "#e0e0e0"
+
+font-family: "system-ui, -apple-system, sans-serif"
+font-size-base: "1rem"
+font-size-h1: "2.5rem"
+font-size-h2: "2rem"
+font-size-h3: "1.5rem"
+font-size-h4: "1.25rem"
+line-height: "1.6"
+line-height-heading: "1.2"
+
+space-xs: "0.25rem"
+space-sm: "0.5rem"
+space-md: "1rem"
+space-lg: "2rem"
+space-xl: "4rem"
+
+radius-sm: "4px"
+radius-md: "8px"
 `;
 
 const CONFIG_TEMPLATE = `project:
@@ -109,6 +137,7 @@ export function initProject(rootDir: string, name?: string): void {
     CONFIG_TEMPLATE.replace('{{name}}', projectName),
   );
   writeFileSync(join(rootDir, 'global.css'), GLOBAL_CSS);
+  writeFileSync(join(rootDir, 'design-tokens.yaml'), DESIGN_TOKENS);
 }
 
 export function scaffoldComponent(rootDir: string, name: string): void {

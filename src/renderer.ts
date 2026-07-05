@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { load } from 'js-yaml';
 import type { Component, Page, PlaceholderValue, ImageValue } from './types.js';
 import { EngineError } from './types.js';
 import { escapeHtml, escapeAttr } from './escape.js';
@@ -52,8 +53,10 @@ export function renderPage(rootDir: string, pageName: string): string {
     renderedComponents.push({ name, html: innerHTML });
   }
 
-  // Read global CSS
-  const globalCSS = readFileSync(join(rootDir, 'global.css'), 'utf-8');
+  // Read global CSS and resolve design tokens
+  let globalCSS = readFileSync(join(rootDir, 'global.css'), 'utf-8');
+  const tokens = loadDesignTokens(rootDir);
+  globalCSS = resolveTokens(globalCSS, tokens);
 
   // Assemble CSS
   const compsArray = Array.from(allComponents.values());
@@ -207,4 +210,19 @@ function scriptTag(s: { src: string; defer?: boolean; async?: boolean; type?: st
 function indent(html: string, spaces: number): string {
   const prefix = ' '.repeat(spaces);
   return html.split('\n').map((line) => prefix + line).join('\n');
+}
+
+export function loadDesignTokens(rootDir: string): Record<string, string> {
+  const path = join(rootDir, 'design-tokens.yaml');
+  if (!existsSync(path)) return {};
+  try {
+    const raw = load(readFileSync(path, 'utf-8')) as Record<string, unknown>;
+    const tokens: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) { tokens[k] = String(v); }
+    return tokens;
+  } catch { return {}; }
+}
+
+export function resolveTokens(css: string, tokens: Record<string, string>): string {
+  return css.replace(/\{\{\s*([\w-]+)\s*\}\}/g, (_, name) => tokens[name] ?? `{{${name}}}`);
 }

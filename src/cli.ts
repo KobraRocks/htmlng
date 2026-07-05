@@ -4,7 +4,7 @@ import { createTwoFilesPatch } from 'diff';
 import { load, dump } from 'js-yaml';
 import { EngineError } from './types.js';
 import { loadConfig } from './config.js';
-import { renderPage, renderComponent, previewComponent } from './renderer.js';
+import { renderPage, renderComponent, previewComponent, loadDesignTokens, resolveTokens } from './renderer.js';
 import { isStale, getChangedSources, updateCache } from './hasher.js';
 import { affectedPages } from './propagation.js';
 import { copyAssets } from './copier.js';
@@ -233,7 +233,8 @@ async function cmdBuild(args: string[]) {
       parseComponent(join(ROOT, config.paths.components, `${n}.component.html`))
     );
     const { assemblePageCSS } = await import('./css.js');
-    const globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
+    let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
+    globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
     writeFileSync(join(buildDir, 'css', `${p}.css`), assemblePageCSS(allComps, globalCSS));
 
     updateCache(ROOT, p, html);
