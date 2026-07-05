@@ -484,6 +484,15 @@ async function cmdServe(args: string[]) {
           for (const p of findPages(join(ROOT, config.paths.pages))) {
             const h = renderPage(ROOT, p);
             writeFileSync(join(buildDir, `${p}.html`), h);
+
+            const page = parsePage(join(ROOT, config.paths.pages, `${p}.page.yaml`));
+            const allComps = page.components.map(n =>
+              parseComponent(join(ROOT, config.paths.components, `${n}.component.html`))
+            );
+            let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
+            globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
+            writeFileSync(join(buildDir, 'css', `${p}.css`), assemblePageCSS(allComps, globalCSS));
+
             updateCache(ROOT, p, h);
           }
           // Notify SSE clients to reload
