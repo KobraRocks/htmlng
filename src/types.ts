@@ -54,6 +54,7 @@ export interface ImageValue {
 export interface LinkValue {
   href: string;
   label: string;
+  class?: string;
 }
 
 export interface SlotValue {

@@ -31,6 +31,7 @@ const handlers: Record<string, Handler> = {
   watch:   cmdWatch,
   add:     cmdAdd,
   list:    cmdList,
+  serve:   cmdServe,
 };
 
 const HELP = `HTML Engine — deterministic component-based HTML generator
@@ -52,6 +53,7 @@ Commands:
   watch                          Watch files and rebuild on change
   add component <c> --page <p>   Add component to page
   list pages|components|data [<p>]  List resources
+  serve [--port <n>]             Start dev server on build/ directory
 
 Flags:
   --verbose    Enable debug logging
@@ -82,7 +84,7 @@ export async function run(args: string[]): Promise<void> {
   verbose = has(args, '--verbose');
   strict = has(args, '--strict');
 
-  const KEEP = new Set(['--page', '--all', '--compact', '--name']);
+  const KEEP = new Set(['--page', '--all', '--compact', '--name', '--port']);
   const filtered = args.filter(a => !a.startsWith('--') || KEEP.has(a));
 
   const command = filtered[0];
@@ -362,4 +364,37 @@ async function cmdList(args: string[]) {
       process.stdout.write('(no data files)\n');
     }
   }
+}
+
+async function cmdServe(args: string[]) {
+  const config = loadConfig(ROOT);
+  const buildDir = join(ROOT, config.paths.build);
+  const port = parseInt(flag(args, '--port') ?? '3000', 10);
+
+  const { createServer } = await import('node:http');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { extname } = await import('node:path');
+
+  const MIME: Record<string, string> = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.woff2': 'font/woff2',
+  };
+
+  const server = createServer((_req, res) => {
+    const url = _req.url === '/' ? '/index.html' : _req.url ?? '/index.html';
+    const filePath = join(buildDir, url);
+    if (!existsSync(filePath)) { res.writeHead(404); res.end('Not found'); return; }
+    const ext = extname(filePath);
+    res.writeHead(200, { 'Content-Type': MIME[ext] ?? 'application/octet-stream' });
+    res.end(readFileSync(filePath));
+  });
+
+  server.listen(port, () => {
+    process.stdout.write(`Serving ${relative(ROOT, buildDir)}/ at http://localhost:${port}\n`);
+  });
 }

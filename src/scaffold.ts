@@ -7,6 +7,18 @@ const COMPONENT_TEMPLATE = `<h2>{{text:heading}}</h2>
 <p>{{text:body}}</p>
 ---
 /*
+  Placeholder types:
+  {{text:name}}          Text with inline formatting (<strong>, <em>, <a href>, <code>, <br>)
+  {{html:name}}          Raw HTML (unsanitized)
+  {{image:name}}         <img> element  → data: { src, alt, width?, height?, loading? }
+  {{link:name}}          <a> element    → data: { href, label, class? }
+  {{#list:name}}...{{/list:name}}  Repeated block  → data: array
+    For object items: {{text:field}}    For scalar items: {{text:this}}
+  {{#bool:name}}...{{/bool:name}}  Conditional block → data: true/false
+  {{slot:name}}          Nested component → data: { component, data? }
+*/
+---
+/*
  * CSS — styles scoped to .{{name}}
  * Write selectors naturally; the engine prefixes them with .{{name}}
  */
@@ -140,8 +152,20 @@ export function scaffoldData(
       lines.push(`${key}:`);
       lines.push(`  src: null`);
       if (def.type === 'image') lines.push(`  alt: null`);
+      if (def.type === 'link') { lines.push(`  label: ""`); lines.push(`  # class: ""`); }
     } else if (def.type === 'list') {
-      lines.push(`${key}: []`);
+      // Extract sub-fields used in the list block for hints
+      const blockRe = new RegExp(`\\{\\{\\s*#list:${key}\\s*\\}\\}([\\s\\S]*?)\\{\\{\\s*/list:${key}\\s*\\}\\}`, 'g');
+      const blockMatch = blockRe.exec(comp.template);
+      if (blockMatch) {
+        const innerFields = [...blockMatch[1].matchAll(/\{\{text:(\w+)\}\}/g)].map(m => m[1]);
+        if (innerFields.length > 0) {
+          lines.push(`# Expected fields per item: ${innerFields.join(', ')}`);
+        }
+      }
+      lines.push(`${key}:`);
+      lines.push(`  - title: ""`);
+      lines.push(`    description: ""`);
     } else if (def.type === 'bool') {
       lines.push(`${key}: false`);
     } else {

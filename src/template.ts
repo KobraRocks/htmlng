@@ -115,7 +115,8 @@ function resolveInline(
     case 'link': {
       const v = data[name] as LinkValue | undefined;
       if (!v) return '';
-      return `<a href="${escapeAttr(v.href)}">${escapeHtml(v.label)}</a>`;
+      const cls = v.class ? ` class="${escapeAttr(v.class)}"` : '';
+      return `<a href="${escapeAttr(v.href)}"${cls}>${escapeHtml(v.label)}</a>`;
     }
     case 'slot': {
       const v = data[name] as SlotValue | undefined;
