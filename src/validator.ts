@@ -32,7 +32,71 @@ export function validateComponent(comp: Component): EngineError[] {
     );
   }
 
+  // Cross-validate template placeholders against schema
+  const templateFields = extractPlaceholders(comp.template);
+  const schemaFields = new Set(Object.keys(comp.schema));
+
+  for (const field of templateFields) {
+    if (!schemaFields.has(field)) {
+      throw new EngineError(
+        `Template uses placeholder "${field}" but schema has no matching entry. ` +
+        `Add "${field}" to the schema section, or update the template.`,
+        `components/${comp.name}.component.html`,
+        field,
+      );
+    }
+  }
+
+  for (const field of schemaFields) {
+    if (!templateFields.has(field)) {
+      warnings.push(new EngineError(
+        `Schema defines "${field}" but template does not use it. ` +
+        `Remove from schema or add {{...${field}}} to the template.`,
+        `components/${comp.name}.component.html`,
+        field,
+        'WARNING',
+      ));
+    }
+  }
+
   return warnings;
+}
+
+function extractPlaceholders(template: string): Set<string> {
+  const fields = new Set<string>();
+  const re = /\{\{\s*(\/?)\s*(#)?\s*(\w+)\s*:\s*(\w+)\s*\}\}/g;
+  let m: RegExpExecArray | null;
+
+  // Find all placeholders with their positions
+  const all: Array<{ name: string; isBlock: boolean; pos: number; closePos?: number }> = [];
+  while ((m = re.exec(template)) !== null) {
+    const isBlockOpen = m[2] === '#';
+    const isClose = m[1] === '/';
+    if (!isClose) {
+      all.push({ name: m[4], isBlock: isBlockOpen, pos: m.index });
+    } else {
+      // Find matching open and mark its range
+      for (let i = all.length - 1; i >= 0; i--) {
+        if (all[i].isBlock && all[i].name === m[4] && all[i].closePos === undefined) {
+          all[i].closePos = m.index + m[0].length;
+          break;
+        }
+      }
+    }
+  }
+
+  // Only collect top-level names and block names (exclude names inside blocks)
+  for (const item of all) {
+    const isInsideBlock = all.some(
+      (b) => b.isBlock && b.closePos !== undefined && b.pos < item.pos && item.pos < b.closePos,
+    );
+    // Block names themselves are always top-level (they define the block)
+    if (item.isBlock || !isInsideBlock) {
+      fields.add(item.name);
+    }
+  }
+
+  return fields;
 }
 
 /**
