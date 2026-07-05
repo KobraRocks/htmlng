@@ -1,7 +1,8 @@
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './config.js';
 import { parseComponent } from './component.js';
+import { EngineError } from './types.js';
 
 const COMPONENT_TEMPLATE = `<h2>{{text:heading}}</h2>
 <p>{{text:body}}</p>
@@ -130,7 +131,7 @@ export function initProject(rootDir: string, name?: string): void {
   mkdirSync(join(rootDir, 'components'), { recursive: true });
   mkdirSync(join(rootDir, 'pages'), { recursive: true });
   mkdirSync(join(rootDir, 'data'), { recursive: true });
-  mkdirSync(join(rootDir, 'assets'), { recursive: true });
+  mkdirSync(join(rootDir, 'presets'), { recursive: true });
 
   writeFileSync(
     join(rootDir, 'engine.config.yaml'),
@@ -206,4 +207,40 @@ export function scaffoldData(
     join(dir, `${componentName}.yaml`),
     lines.join('\n') + '\n',
   );
+}
+
+export function scaffoldPresetComponent(rootDir: string, name: string, presetName: string): void {
+  const config = loadConfig(rootDir);
+  const presetPath = join(rootDir, 'presets', `${presetName}.component.html`);
+
+  let content: string;
+  try {
+    content = readFileSync(presetPath, 'utf-8');
+  } catch {
+    throw new EngineError(`Preset not found: ${presetName}`, presetPath);
+  }
+
+  const destPath = join(rootDir, config.paths.components, `${name}.component.html`);
+  writeFileSync(destPath, content);
+}
+
+export function savePreset(rootDir: string, componentName: string, presetName: string): void {
+  const config = loadConfig(rootDir);
+  const srcPath = join(rootDir, config.paths.components, `${componentName}.component.html`);
+  const destDir = join(rootDir, 'presets');
+
+  mkdirSync(destDir, { recursive: true });
+
+  const content = readFileSync(srcPath, 'utf-8');
+  const destPath = join(destDir, `${presetName}.component.html`);
+  writeFileSync(destPath, content);
+}
+
+export function listPresets(rootDir: string): string[] {
+  try {
+    const files = readdirSync(join(rootDir, 'presets'));
+    return files.filter(f => f.endsWith('.component.html')).map(f => f.replace('.component.html', ''));
+  } catch {
+    return [];
+  }
 }

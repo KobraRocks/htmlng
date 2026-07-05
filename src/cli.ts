@@ -9,7 +9,15 @@ import { assemblePageCSS } from './css.js';
 import { isStale, getChangedSources, updateCache } from './hasher.js';
 import { affectedPages } from './propagation.js';
 import { copyAssets } from './copier.js';
-import { initProject, scaffoldComponent, scaffoldPage, scaffoldData } from './scaffold.js';
+import {
+  initProject,
+  scaffoldComponent,
+  scaffoldPage,
+  scaffoldData,
+  scaffoldPresetComponent,
+  savePreset,
+  listPresets,
+} from './scaffold.js';
 import { validateComponent, validatePageStructure } from './validator.js';
 import { parseComponent, findComponents } from './component.js';
 import { parsePage, findPages } from './page.js';
@@ -30,6 +38,7 @@ const handlers: Record<string, Handler> = {
   build:   cmdBuild,
   diff:    cmdDiff,
   watch:   cmdWatch,
+  save:    cmdSave,
   add:     cmdAdd,
   list:    cmdList,
   serve:   cmdServe,
@@ -55,7 +64,9 @@ Commands:
   watch                          Watch files and rebuild on change
   add component <c> --page <p>   Add component to page
   move component <c> --page <p> --before|--after <other>  Reorder component
+  save component <c> --as-preset <name>  Save component as reusable preset
   list pages|components|data [<p>]  List resources
+  list presets                   List available presets
   serve [--port <n>] [--watch]  Start dev server on build/ directory
 
 Flags:
@@ -87,7 +98,7 @@ export async function run(args: string[]): Promise<void> {
   verbose = has(args, '--verbose');
   strict = has(args, '--strict');
 
-  const KEEP = new Set(['--page', '--all', '--compact', '--name', '--port', '--with-css', '--before', '--after', '--watch']);
+  const KEEP = new Set(['--page', '--all', '--compact', '--name', '--port', '--with-css', '--before', '--after', '--watch', '--preset', '--as-preset']);
   const filtered = args.filter(a => !a.startsWith('--') || KEEP.has(a));
 
   const command = filtered[0];
@@ -124,8 +135,14 @@ async function cmdInit(args: string[]) {
 async function cmdCreate(args: string[]) {
   const what = args[0];
   if (what === 'component') {
-    scaffoldComponent(ROOT, args[1]);
-    process.stdout.write(`Created components/${args[1]}.component.html\n`);
+    const preset = flag(args, '--preset');
+    if (preset) {
+      scaffoldPresetComponent(ROOT, args[1], preset);
+      process.stdout.write(`Created components/${args[1]}.component.html from preset "${preset}"\n`);
+    } else {
+      scaffoldComponent(ROOT, args[1]);
+      process.stdout.write(`Created components/${args[1]}.component.html\n`);
+    }
   } else if (what === 'page') {
     scaffoldPage(ROOT, args[1]);
     process.stdout.write(`Created pages/${args[1]}.page.yaml\n`);
@@ -363,7 +380,9 @@ async function cmdList(args: string[]) {
   const config = loadConfig(ROOT);
   const what = args[0];
 
-  if (what === 'pages') {
+  if (what === 'presets') {
+    process.stdout.write(listPresets(ROOT).join('\n') + '\n');
+  } else if (what === 'pages') {
     process.stdout.write(findPages(join(ROOT, config.paths.pages)).join('\n') + '\n');
   } else if (what === 'components') {
     process.stdout.write(findComponents(join(ROOT, config.paths.components)).join('\n') + '\n');
@@ -478,6 +497,18 @@ async function cmdServe(args: string[]) {
       }, 100);
     });
   }
+}
+
+async function cmdSave(args: string[]) {
+  const presetName = flag(args, '--as-preset');
+  const compIdx = args.indexOf('component');
+  const compName = args[compIdx + 1];
+  if (!compName || !presetName) {
+    process.stderr.write('Usage: htmlng save component <name> --as-preset <preset-name>\n');
+    process.exit(1);
+  }
+  savePreset(ROOT, compName, presetName);
+  process.stdout.write(`Saved "${compName}" as preset "${presetName}".\n`);
 }
 
 async function cmdMove(args: string[]) {
