@@ -42,14 +42,17 @@ htmlng build                                # write to disk
 | `htmlng create data <c> --page <p>` | Scaffold a data file |
 | `htmlng render component <c> --page <p>` | Render component inner HTML to stdout |
 | `htmlng render component <c> --all` | Render component across all pages |
+| `htmlng render component <c> --page <p> --with-css` | Render with compiled CSS for style preview |
 | `htmlng render page <p> [--compact]` | Render full page to stdout |
-| `htmlng preview component <c>` | Preview with sample data |
+| `htmlng preview component <c> [--with-css]` | Preview with sample data |
 | `htmlng validate` | Validate all pages |
 | `htmlng build [page <p>]` | Write pages to build/ directory |
 | `htmlng diff [page <p>]` | Show unified diff vs last build |
 | `htmlng add component <c> --page <p>` | Add component to page |
+| `htmlng move component <c> --page <p> --before\|--after <other>` | Reorder component in page |
 | `htmlng list pages\|components\|data [<p>]` | List resources |
 | `htmlng watch` | Watch files and rebuild on change |
+| `htmlng serve [--port <n>] [--watch]` | Start dev server on build/ directory |
 
 ## How It Works
 
@@ -94,6 +97,19 @@ Three sections separated by `---`: template, CSS (scoped automatically), JSON sc
 ### Page structure
 
 The first component renders as `<header>`, the last (if named `footer`) as `<footer>`, and everything else as `<section id="name" class="name">`.
+
+### Design tokens
+
+Global styles are driven by `design-tokens.yaml`. Edit values and rebuild — all components pick up the changes instantly:
+
+```yaml
+# design-tokens.yaml
+primary: "#1a1a2e"      # brand color
+font-size-h1: "3rem"    # heading size
+space-xl: "6rem"        # section spacing
+```
+
+`global.css` uses `{{token-name}}` placeholders resolved at build time.
 
 ## Docs
 

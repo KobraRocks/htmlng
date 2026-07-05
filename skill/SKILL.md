@@ -47,9 +47,10 @@ htmlng create data <c> --page <p>     # Scaffold a data file (reads schema, fill
 
 ```bash
 htmlng render component <c> --page <p>  # Render one component's inner HTML
+htmlng render component <c> --page <p> --with-css  # Render with compiled CSS for style preview
 htmlng render component <c> --all       # Render component across all pages
 htmlng render page <p> [--compact]      # Render full HTML page
-htmlng preview component <c>            # Preview with sample data
+htmlng preview component <c> [--with-css]  # Preview with sample data
 ```
 
 ### Validation
@@ -71,9 +72,23 @@ htmlng diff [page <p>]                # Show unified diff vs last build
 
 ```bash
 htmlng add component <c> --page <p>    # Add component to page
+htmlng move component <c> --page <p> --before|--after <other>  # Reorder component
 htmlng list pages|components|data [<p>] # List resources
 htmlng watch                           # Watch files and rebuild on change
+htmlng serve [--port <n>] [--watch]    # Start dev server
 ```
+
+## Design tokens
+
+Global styles are driven by `design-tokens.yaml`. Edit values and rebuild:
+
+```yaml
+primary: "#1a1a2e"      # brand color — changes all components
+font-size-h1: "3rem"    # heading size
+space-xl: "6rem"        # section spacing
+```
+
+`global.css` uses `{{token-name}}` placeholders resolved at build time.
 
 ## Workflow for AI agents
 
@@ -145,12 +160,30 @@ htmlng watch                           # Watch files and rebuild on change
 
 Only `href` is allowed on `<a>`. No other attributes on any tag. Block-level tags (`<div>`, `<p>`, `<h1>`, etc.) produce an error suggesting to use `{{html:field}}` instead.
 
+### Changing global styles (design tokens)
+
+```
+1. Edit design-tokens.yaml (change colors, fonts, spacing)
+2. htmlng build                        (rebuild all pages)
+3. htmlng serve [--watch]              (preview in browser)
+```
+
+### Previewing component styling
+
+```
+1. Edit components/<name>.component.html CSS section
+2. htmlng render component <name> --page <page> --with-css
+3. Save output to .html file and open in browser
+4. Or: htmlng preview component <name> --with-css (sample data)
+```
+
 ## Project structure
 
 ```
 project/
   engine.config.yaml    # Project settings
-  global.css            # Design tokens + semantic element baseline styles
+  global.css            # CSS template with {{token}} placeholders
+  design-tokens.yaml    # Design token values (colors, fonts, spacing)
   components/           # *.component.html files (template | CSS | schema)
   pages/                # *.page.yaml files (title, components list, head, scripts)
   data/                 # <page>/<component>.yaml files (placeholder values)
