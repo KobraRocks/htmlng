@@ -384,6 +384,7 @@ async function cmdServe(args: string[]) {
   const config = loadConfig(ROOT);
   const buildDir = join(ROOT, config.paths.build);
   const port = parseInt(flag(args, '--port') ?? '3000', 10);
+  const watching = has(args, '--watch');
 
   const { createServer } = await import('node:http');
   const { readFileSync, existsSync } = await import('node:fs');
@@ -399,20 +400,52 @@ async function cmdServe(args: string[]) {
     '.woff2': 'font/woff2',
   };
 
+  // SSE clients for hot reload
+  const clients: Array<{ write: (data: string) => void; end: () => void }> = [];
+
+  const RELOAD_SCRIPT = `\n<script>\nnew EventSource('/__htmlng_reload').onmessage = () => location.reload();\n</script>`;
+
   const server = createServer((_req, res) => {
     const url = _req.url === '/' ? '/index.html' : _req.url ?? '/index.html';
+
+    // SSE endpoint for hot reload
+    if (watching && url === '/__htmlng_reload') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      });
+      res.write('data: connected\n\n');
+      const client = { write: (data: string) => res.write(data), end: () => res.end() };
+      clients.push(client);
+      _req.on('close', () => {
+        const idx = clients.indexOf(client);
+        if (idx !== -1) clients.splice(idx, 1);
+      });
+      return;
+    }
+
     const filePath = join(buildDir, url);
     if (!existsSync(filePath)) { res.writeHead(404); res.end('Not found'); return; }
+
+    let content = readFileSync(filePath, 'utf-8');
     const ext = extname(filePath);
+
+    // Inject reload script into HTML if watching
+    if (watching && ext === '.html') {
+      content = content.replace('</body>', RELOAD_SCRIPT + '</body>');
+    }
+
     res.writeHead(200, { 'Content-Type': MIME[ext] ?? 'application/octet-stream' });
-    res.end(readFileSync(filePath));
+    res.end(content);
   });
 
   server.listen(port, () => {
     process.stdout.write(`Serving ${relative(ROOT, buildDir)}/ at http://localhost:${port}\n`);
+    if (watching) process.stdout.write(`Hot reload enabled — watching for changes\n`);
   });
 
-  if (has(args, '--watch')) {
+  if (watching) {
     const { watch } = await import('chokidar');
     const watcher = watch([
       join(ROOT, config.paths.components),
@@ -434,6 +467,11 @@ async function cmdServe(args: string[]) {
             writeFileSync(join(buildDir, `${p}.html`), h);
             updateCache(ROOT, p, h);
           }
+          // Notify SSE clients to reload
+          for (const client of clients) {
+            client.write('data: reload\n\n');
+          }
+          clients.length = 0;
         } catch (e) {
           if (e instanceof EngineError) process.stderr.write(e.format() + '\n');
         }
