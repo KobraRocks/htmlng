@@ -5,6 +5,7 @@ import { load, dump } from 'js-yaml';
 import { EngineError } from './types.js';
 import { loadConfig } from './config.js';
 import { renderPage, renderComponent, previewComponent, loadDesignTokens, resolveTokens } from './renderer.js';
+import { assemblePageCSS } from './css.js';
 import { isStale, getChangedSources, updateCache } from './hasher.js';
 import { affectedPages } from './propagation.js';
 import { copyAssets } from './copier.js';
@@ -32,6 +33,7 @@ const handlers: Record<string, Handler> = {
   add:     cmdAdd,
   list:    cmdList,
   serve:   cmdServe,
+  move:    cmdMove,
 };
 
 const HELP = `HTML Engine — deterministic component-based HTML generator
@@ -52,8 +54,9 @@ Commands:
   diff [page <p>]                Show unified diff vs last build
   watch                          Watch files and rebuild on change
   add component <c> --page <p>   Add component to page
+  move component <c> --page <p> --before|--after <other>  Reorder component
   list pages|components|data [<p>]  List resources
-  serve [--port <n>]             Start dev server on build/ directory
+  serve [--port <n>] [--watch]  Start dev server on build/ directory
 
 Flags:
   --verbose    Enable debug logging
@@ -84,7 +87,7 @@ export async function run(args: string[]): Promise<void> {
   verbose = has(args, '--verbose');
   strict = has(args, '--strict');
 
-  const KEEP = new Set(['--page', '--all', '--compact', '--name', '--port']);
+  const KEEP = new Set(['--page', '--all', '--compact', '--name', '--port', '--with-css', '--before', '--after', '--watch']);
   const filtered = args.filter(a => !a.startsWith('--') || KEEP.has(a));
 
   const command = filtered[0];
@@ -136,6 +139,7 @@ async function cmdCreate(args: string[]) {
 }
 
 async function cmdRender(args: string[]) {
+  const withCSS = has(args, '--with-css');
   const sub = args[0];
   if (sub === 'component') {
     const name = args[1];
@@ -158,9 +162,13 @@ async function cmdRender(args: string[]) {
       const page = flag(args, '--page');
       if (!page) { process.stderr.write('Error: --page <page> is required (or use --all)\n'); process.exit(1); }
       const html = renderComponent(ROOT, name, page);
-      const changed = getChangedSources(ROOT, page);
-      const status = isStale(ROOT, page) ? `rendered (changed: ${changed.join(', ') || 'unknown'})` : 'cached (no source changes)';
-      process.stdout.write(`=== COMPONENT: ${name}\n=== PAGE: ${page}\n=== STATUS: ${status}\n\n${html}\n`);
+      if (withCSS) {
+        process.stdout.write(wrapWithCSS(ROOT, name, html));
+      } else {
+        const changed = getChangedSources(ROOT, page);
+        const status = isStale(ROOT, page) ? `rendered (changed: ${changed.join(', ') || 'unknown'})` : 'cached (no source changes)';
+        process.stdout.write(`=== COMPONENT: ${name}\n=== PAGE: ${page}\n=== STATUS: ${status}\n\n${html}\n`);
+      }
     }
   } else if (sub === 'page') {
     const name = args[1];
@@ -185,8 +193,13 @@ async function cmdRender(args: string[]) {
 
 async function cmdPreview(args: string[]) {
   const name = args[1];
+  const withCSS = has(args, '--with-css');
   const html = previewComponent(ROOT, name);
-  process.stdout.write(`=== COMPONENT: ${name} (preview)\n=== STATUS: sample data\n\n${html}\n`);
+  if (withCSS) {
+    process.stdout.write(wrapWithCSS(ROOT, name, html));
+  } else {
+    process.stdout.write(`=== COMPONENT: ${name} (preview)\n=== STATUS: sample data\n\n${html}\n`);
+  }
 }
 
 async function cmdValidate(args: string[]) {
@@ -398,4 +411,77 @@ async function cmdServe(args: string[]) {
   server.listen(port, () => {
     process.stdout.write(`Serving ${relative(ROOT, buildDir)}/ at http://localhost:${port}\n`);
   });
+
+  if (has(args, '--watch')) {
+    const { watch } = await import('chokidar');
+    const watcher = watch([
+      join(ROOT, config.paths.components),
+      join(ROOT, config.paths.pages),
+      join(ROOT, config.paths.data),
+      join(ROOT, 'global.css'),
+      join(ROOT, 'design-tokens.yaml'),
+    ], { ignored: ['**/node_modules/**'] });
+
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    watcher.on('change', () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        try {
+          process.stdout.write(`[rebuilt]\n`);
+          copyAssets(ROOT);
+          for (const p of findPages(join(ROOT, config.paths.pages))) {
+            const h = renderPage(ROOT, p);
+            writeFileSync(join(buildDir, `${p}.html`), h);
+            updateCache(ROOT, p, h);
+          }
+        } catch (e) {
+          if (e instanceof EngineError) process.stderr.write(e.format() + '\n');
+        }
+      }, 100);
+    });
+  }
 }
+
+async function cmdMove(args: string[]) {
+  const name = args[args.indexOf('component') + 1];
+  const page = flag(args, '--page');
+  const before = flag(args, '--before');
+  const after = flag(args, '--after');
+  if (!name || !page || (!before && !after)) {
+    process.stderr.write('Usage: htmlng move component <name> --page <page> --before|--after <other>\n');
+    process.exit(1);
+  }
+
+  const config = loadConfig(ROOT);
+  const pagePath = join(ROOT, config.paths.pages, `${page}.page.yaml`);
+  const p = parsePage(pagePath);
+
+  const idx = p.components.indexOf(name);
+  if (idx === -1) { process.stderr.write(`Component "${name}" not in page "${page}".\n`); process.exit(1); }
+
+  const target = before ?? after!;
+  const targetIdx = p.components.indexOf(target);
+  if (targetIdx === -1) { process.stderr.write(`Component "${target}" not in page "${page}".\n`); process.exit(1); }
+
+  p.components.splice(idx, 1);
+  const insertAt = before ? p.components.indexOf(target) : p.components.indexOf(target) + 1;
+  p.components.splice(insertAt, 0, name);
+
+  const raw = load(readFileSync(pagePath, 'utf-8')) as Record<string, unknown>;
+  raw.components = p.components;
+  writeFileSync(pagePath, dump(raw, { lineWidth: -1 }));
+  process.stdout.write(`Moved "${name}" ${before ? 'before' : 'after'} "${target}" in page "${page}".\n`);
+}
+
+function wrapWithCSS(rootDir: string, componentName: string, innerHTML: string): string {
+  const config = loadConfig(ROOT);
+  const comp = parseComponent(join(ROOT, config.paths.components, `${componentName}.component.html`));
+  let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
+  globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
+  const scopedCSS = assemblePageCSS([comp], globalCSS);
+
+  return `<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<style>\n${scopedCSS}\n</style>\n</head>\n<body>\n  <div class="${escAttr(componentName)}">\n${ind(innerHTML, 4)}\n  </div>\n</body>\n</html>`;
+}
+
+function ind(s: string, n: number): string { const p = ' '.repeat(n); return s.split('\n').map(l => p + l).join('\n'); }
+function escAttr(s: string): string { return s.replace(/"/g, '&quot;'); }
