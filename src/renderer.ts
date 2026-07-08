@@ -15,7 +15,7 @@ import { validateComponent, validatePageData, validatePageStructure } from './va
 /**
  * Render a full HTML page document.
  */
-export function renderPage(rootDir: string, pageName: string): string {
+export function renderPage(rootDir: string, pageName: string, inlineCSS = false): string {
   const config = loadConfig(rootDir);
   const pagePath = join(rootDir, config.paths.pages, `${pageName}.page.yaml`);
   const page = parsePage(pagePath);
@@ -37,20 +37,27 @@ export function renderPage(rootDir: string, pageName: string): string {
     allComponents.set(name, comp);
   }
 
-  // Render each component
-  const renderedComponents: Array<{ name: string; html: string }> = [];
+  // Render each component (data may be a single object or an array of objects)
+  const renderedComponents: Array<{ name: string; html: string; index?: number }> = [];
   for (const name of page.components) {
     const comp = allComponents.get(name)!;
     const data = loadData(rootDir, pageName, name);
     const dataPath = join(rootDir, config.paths.data, pageName, `${name}.yaml`);
 
-    // Validate data
-    const warnings = validatePageData(comp, data, dataPath);
-
-    // Render template
-    const innerHTML = renderTemplate(comp.template, data, allComponents);
-
-    renderedComponents.push({ name, html: innerHTML });
+    if (Array.isArray(data)) {
+      // Array data — render one section per array element
+      for (let i = 0; i < data.length; i++) {
+        const item = data[i] as Record<string, PlaceholderValue>;
+        validatePageData(comp, item, dataPath);
+        const innerHTML = renderTemplate(comp.template, item, allComponents);
+        renderedComponents.push({ name, html: innerHTML, index: data.length > 1 ? i : undefined });
+      }
+    } else {
+      // Single object data — current behavior
+      validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath);
+      const innerHTML = renderTemplate(comp.template, data as Record<string, PlaceholderValue>, allComponents);
+      renderedComponents.push({ name, html: innerHTML });
+    }
   }
 
   // Read global CSS and resolve design tokens
@@ -84,7 +91,11 @@ export function renderPage(rootDir: string, pageName: string): string {
       head += `  <link rel="${escapeAttr(l.rel)}" href="${escapeAttr(l.href)}">\n`;
     }
   }
-  head += `  <link rel="stylesheet" href="css/${pageName}.css">\n`;
+  if (inlineCSS) {
+    head += `  <style>\n${pageCSS}\n  </style>\n`;
+  } else {
+    head += `  <link rel="stylesheet" href="css/${pageName}.css">\n`;
+  }
 
   // Scripts in head
   if (page.scripts) {
@@ -98,8 +109,9 @@ export function renderPage(rootDir: string, pageName: string): string {
   // Body
   let body = '';
   for (let i = 0; i < renderedComponents.length; i++) {
-    const { name, html } = renderedComponents[i];
-    const id = `id="${escapeAttr(name)}"`;
+    const { name, html, index } = renderedComponents[i];
+    const idSuffix = index !== undefined ? `-${index}` : '';
+    const id = `id="${escapeAttr(name)}${idSuffix}"`;
     const cls = `class="${escapeAttr(name)}"`;
 
     if (i === 0) {
@@ -151,9 +163,25 @@ export function renderComponent(rootDir: string, componentName: string, pageName
 
   validateComponent(comp);
   const dataPath = join(rootDir, config.paths.data, pageName, `${componentName}.yaml`);
-  validatePageData(comp, data, dataPath);
 
-  return renderTemplate(comp.template, data, allComponents);
+  if (Array.isArray(data)) {
+    // Render each array element separated by dividers
+    const parts: string[] = [];
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i] as Record<string, PlaceholderValue>;
+      validatePageData(comp, item, dataPath);
+      const innerHTML = renderTemplate(comp.template, item, allComponents);
+      if (data.length > 1) {
+        parts.push(`=== ITEM ${i} ===\n${innerHTML}`);
+      } else {
+        parts.push(innerHTML);
+      }
+    }
+    return parts.join('\n');
+  }
+
+  validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath);
+  return renderTemplate(comp.template, data as Record<string, PlaceholderValue>, allComponents);
 }
 
 /**

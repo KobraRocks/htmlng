@@ -17,6 +17,7 @@ const DEFAULTS: EngineConfig = {
     minify: false,
     pretty: true,
     assetFingerprinting: false,
+    inlineCSS: false,
   },
   validation: {
     strict: false,
@@ -72,6 +73,7 @@ export function loadConfig(rootDir: string): EngineConfig {
     if (typeof b.minify === 'boolean') config.build.minify = b.minify;
     if (typeof b.pretty === 'boolean') config.build.pretty = b.pretty;
     if (typeof b.assetFingerprinting === 'boolean') config.build.assetFingerprinting = b.assetFingerprinting;
+    if (typeof b.inlineCSS === 'boolean') config.build.inlineCSS = b.inlineCSS;
   }
 
   if (raw.validation && typeof raw.validation === 'object') {

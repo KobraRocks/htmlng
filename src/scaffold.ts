@@ -118,6 +118,7 @@ build:
   minify: false
   pretty: true
   assetFingerprinting: false
+  inlineCSS: false
 
 validation:
   strict: false

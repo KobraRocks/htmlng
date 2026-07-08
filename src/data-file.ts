@@ -6,22 +6,42 @@ import { EngineError } from './types.js';
 
 /**
  * Load data/<pageName>/<componentName>.yaml.
+ *
+ * Returns an object (Record) when the YAML root is a map — one component instance.
+ * Returns an array when the YAML root is a sequence — N component instances,
+ * each rendered as a separate section with indexed IDs.
  * Returns empty object if file or directory doesn't exist.
  */
 export function loadData(
   rootDir: string,
   pageName: string,
   componentName: string,
-): Record<string, PlaceholderValue> {
+): Record<string, PlaceholderValue> | Record<string, PlaceholderValue>[] {
   const filePath = join(rootDir, 'data', pageName, `${componentName}.yaml`);
 
   try {
     const content = readFileSync(filePath, 'utf-8');
     const parsed = load(content);
     if (parsed === null || parsed === undefined) return {};
-    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+
+    if (Array.isArray(parsed)) {
+      // Array root — repeated instances of the same component
+      if (parsed.length === 0) return [];
+      for (let i = 0; i < parsed.length; i++) {
+        const item = parsed[i];
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+          throw new EngineError(
+            `Array element [${i}] must be an object with placeholder keys, got ${Array.isArray(item) ? 'array' : typeof item}`,
+            filePath,
+          );
+        }
+      }
+      return parsed as Record<string, PlaceholderValue>[];
+    }
+
+    if (typeof parsed !== 'object') {
       throw new EngineError(
-        `Data file must contain a YAML object (key-value pairs), got ${Array.isArray(parsed) ? 'array' : typeof parsed}`,
+        `Data file must contain a YAML object or array, got ${typeof parsed}`,
         filePath,
       );
     }
