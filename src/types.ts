@@ -3,7 +3,7 @@
 export interface EngineConfig {
   project: { name: string; lang: string };
   paths: { components: string; pages: string; data: string; assets: string; build: string };
-  build: { minify: boolean; pretty: boolean; assetFingerprinting: boolean };
+  build: { minify: boolean; pretty: boolean; assetFingerprinting: boolean; inlineCSS: boolean };
   validation: { strict: boolean; requireAltText: boolean; maxHeadingLength: number };
 }
 

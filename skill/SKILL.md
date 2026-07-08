@@ -118,13 +118,60 @@ space-xl: "6rem"        # section spacing
 5. htmlng build                        (write to disk)
 ```
 
+### Repeating a component with different data (array data files)
+
+When you need the same component multiple times on one page with different data,
+use an **array** data file instead of creating copy-pasted component files:
+
+```yaml
+# data/<page>/report-section.yaml — an ARRAY (YAML sequence)
+- heading: "Section 1: Introduction"
+  body: "<p>First section content...</p>"
+- heading: "Section 2: Analysis"
+  body: "<p>Second section content...</p>"
+- heading: "Section 3: Conclusion"
+  body: "<p>Third section content...</p>"
+```
+
+The page YAML lists the component **once**:
+
+```yaml
+components:
+  - report-header
+  - report-section    # ← renders 3 times, once per array element
+  - report-footer
+```
+
+Each array element generates a separate `<section>` with an indexed ID:
+`<section id="report-section-0">`, `<section id="report-section-1">`, etc.
+All share the component's CSS class (`class="report-section"`).
+
+**Rules:**
+- Array data files replace the need for copy-pasted `section-1`, `section-2`, etc.
+- Each array element must be an object with the same placeholder keys as the component schema
+- The component appears once in the page YAML — the engine handles repetition
+- Use `htmlng render component <name> --page <page>` to inspect all rendered items
+
 ### Creating a new component
 
+**Before writing any CSS**, inspect what already exists:
+
 ```
-1. htmlng create component <name>
+0. PRE-FLIGHT — understand the styling landscape:
+   a. Read global.css — know what semantic elements are already styled (h1–h6, p, a, ul, etc.)
+   b. htmlng css <page> — see the full assembled CSS for the target page
+   c. Read 1–2 sibling component CSS blocks — learn the project's patterns
+   d. Ask: can I reuse an existing component with different data instead of creating a new one?
+      (e.g., section-1 through section-7 should be one reusable report-section component)
+
+1. htmlng create component <name> [--preset <p>]
+   Use --preset if a reusable base exists (e.g., --preset report-section)
 2. Edit components/<name>.component.html:
    - Template: HTML with {{text:field}}, {{#list:items}}...{{/list:items}}, etc.
-   - CSS (after first ---): scoped styles (htmlng prefixes with .<name>)
+     Do NOT add a wrapper <div class="<name>"> — the engine provides the semantic wrapper.
+   - CSS (after first ---): ONLY styles unique to this component.
+     Skip anything already covered by global.css (typography, spacing, colors on semantic elements).
+     The engine scopes with .<name> prefix automatically.
    - Schema (after second ---): JSON with placeholder definitions
 3. htmlng add component <name> --page <page>
 4. htmlng create data <name> --page <page>
@@ -133,6 +180,30 @@ space-xl: "6rem"        # section spacing
 7. htmlng render page <page>
 8. htmlng build
 ```
+
+### CSS authoring rules
+
+**Golden rule: only write CSS that is unique to this component.** Everything else belongs in `global.css` or doesn't need to be restated.
+
+✅ **Put in global.css** (applies to all components):
+- Typography: `h1`–`h6`, `p`, `a`, `strong`, `em`, `code`
+- Spacing defaults: `margin-bottom` on `p`, `ul`, `ol`
+- Color system: text, muted text, links, backgrounds
+- Layout primitives: `header, section, footer { max-width; margin: 0 auto; padding }`
+- Table styling, blockquotes, horizontal rules
+
+✅ **Put in component CSS** (unique to this component):
+- Layout that differs from the baseline (e.g., a grid, flex layout, or sticky header)
+- Component-specific overrides (e.g., `h1 { font-size: 3rem }` when the baseline is 2.5rem)
+- Decorative elements unique to the component (borders, backgrounds, special spacing)
+- Interactive states unique to the component
+
+❌ **Never repeat** across multiple components:
+- The same max-width + margin rule in every component → belongs in `global.css`
+- The same flex/grid pattern in multiple components → create a reusable component or preset
+- The same padding/spacing pattern → use design tokens from `design-tokens.yaml`
+
+**Inspecting CSS**: Use `htmlng css <page>` to see the full assembled CSS (global + all component styles) for any page. This reveals duplication and helps you decide whether a style belongs in `global.css` or should be a shared preset.
 
 ### Changing global styles
 

@@ -43,6 +43,7 @@ const handlers: Record<string, Handler> = {
   list:    cmdList,
   serve:   cmdServe,
   move:    cmdMove,
+  css:     cmdCSS,
 };
 
 const HELP = `HTML Engine — deterministic component-based HTML generator
@@ -68,6 +69,7 @@ Commands:
   list pages|components|data [<p>]  List resources
   list presets                   List available presets
   serve [--port <n>] [--watch]  Start dev server on build/ directory
+  css <page>                    Output assembled CSS for a page (global + all component styles)
 
 Flags:
   --verbose    Enable debug logging
@@ -166,7 +168,8 @@ async function cmdRender(args: string[]) {
       for (const p of pages) {
         try {
           const data = loadData(ROOT, p, name);
-          if (Object.keys(data).length === 0) continue;
+          const isEmpty = Array.isArray(data) ? data.length === 0 : Object.keys(data).length === 0;
+          if (isEmpty) continue;
           const html = renderComponent(ROOT, name, p);
           process.stdout.write(`=== COMPONENT: ${name}\n=== PAGE: ${p}\n=== STATUS: rendered\n\n${html}\n`);
         } catch (e) {
@@ -190,18 +193,21 @@ async function cmdRender(args: string[]) {
   } else if (sub === 'page') {
     const name = args[1];
     log(`Rendering page: ${name}`);
-    const html = renderPage(ROOT, name);
+    const config = loadConfig(ROOT);
+    const html = renderPage(ROOT, name, config.build.inlineCSS);
     const changed = getChangedSources(ROOT, name);
     const status = isStale(ROOT, name)
       ? `rendered (changed: ${changed.join(', ') || 'unknown'})`
       : 'cached (no source changes)';
-    const config = loadConfig(ROOT);
     const page = parsePage(join(ROOT, config.paths.pages, `${name}.page.yaml`));
     if (!has(args, '--compact')) {
+      const cssRef = config.build.inlineCSS
+        ? `inline <style> (global + ${page.components.length} components)`
+        : `css/${name}.css (global + ${page.components.length} components)`;
       process.stdout.write(
         `=== PAGE: ${name}\n=== STATUS: ${status}\n` +
         `=== COMPONENTS: ${page.components.join(', ')}\n` +
-        `=== CSS: css/${name}.css (global + ${page.components.length} components)\n\n`
+        `=== CSS: ${cssRef}\n\n`
       );
     }
     process.stdout.write(html + '\n');
@@ -250,22 +256,27 @@ async function cmdBuild(args: string[]) {
   log('Building...');
   const config = loadConfig(ROOT);
   const buildDir = join(ROOT, config.paths.build);
-  mkdirSync(join(buildDir, 'css'), { recursive: true });
+  mkdirSync(buildDir, { recursive: true });
+  if (!config.build.inlineCSS) {
+    mkdirSync(join(buildDir, 'css'), { recursive: true });
+  }
 
   const pages = args[1] ? [args[1]] : findPages(join(ROOT, config.paths.pages));
 
   for (const p of pages) {
-    const html = renderPage(ROOT, p);
+    const html = renderPage(ROOT, p, config.build.inlineCSS);
     writeFileSync(join(buildDir, `${p}.html`), html);
 
-    const page = parsePage(join(ROOT, config.paths.pages, `${p}.page.yaml`));
-    const allComps = page.components.map(n =>
-      parseComponent(join(ROOT, config.paths.components, `${n}.component.html`))
-    );
-    const { assemblePageCSS } = await import('./css.js');
-    let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
-    globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
-    writeFileSync(join(buildDir, 'css', `${p}.css`), assemblePageCSS(allComps, globalCSS));
+    if (!config.build.inlineCSS) {
+      const page = parsePage(join(ROOT, config.paths.pages, `${p}.page.yaml`));
+      const allComps = page.components.map(n =>
+        parseComponent(join(ROOT, config.paths.components, `${n}.component.html`))
+      );
+      const { assemblePageCSS } = await import('./css.js');
+      let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
+      globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
+      writeFileSync(join(buildDir, 'css', `${p}.css`), assemblePageCSS(allComps, globalCSS));
+    }
 
     updateCache(ROOT, p, html);
   }
@@ -482,16 +493,18 @@ async function cmdServe(args: string[]) {
           process.stdout.write(`[rebuilt]\n`);
           copyAssets(ROOT);
           for (const p of findPages(join(ROOT, config.paths.pages))) {
-            const h = renderPage(ROOT, p);
+            const h = renderPage(ROOT, p, config.build.inlineCSS);
             writeFileSync(join(buildDir, `${p}.html`), h);
 
-            const page = parsePage(join(ROOT, config.paths.pages, `${p}.page.yaml`));
-            const allComps = page.components.map(n =>
-              parseComponent(join(ROOT, config.paths.components, `${n}.component.html`))
-            );
-            let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
-            globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
-            writeFileSync(join(buildDir, 'css', `${p}.css`), assemblePageCSS(allComps, globalCSS));
+            if (!config.build.inlineCSS) {
+              const page = parsePage(join(ROOT, config.paths.pages, `${p}.page.yaml`));
+              const allComps = page.components.map(n =>
+                parseComponent(join(ROOT, config.paths.components, `${n}.component.html`))
+              );
+              let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
+              globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
+              writeFileSync(join(buildDir, 'css', `${p}.css`), assemblePageCSS(allComps, globalCSS));
+            }
 
             updateCache(ROOT, p, h);
           }
@@ -549,6 +562,27 @@ async function cmdMove(args: string[]) {
   raw.components = p.components;
   writeFileSync(pagePath, dump(raw, { lineWidth: -1 }));
   process.stdout.write(`Moved "${name}" ${before ? 'before' : 'after'} "${target}" in page "${page}".\n`);
+}
+
+async function cmdCSS(args: string[]) {
+  const pageName = args[0];
+  if (!pageName) { process.stderr.write('Usage: htmlng css <page>\n'); process.exit(1); }
+
+  const config = loadConfig(ROOT);
+  const page = parsePage(join(ROOT, config.paths.pages, `${pageName}.page.yaml`));
+
+  const allComps = page.components.map(n =>
+    parseComponent(join(ROOT, config.paths.components, `${n}.component.html`))
+  );
+  let globalCSS = readFileSync(join(ROOT, 'global.css'), 'utf-8');
+  globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
+
+  const assembled = assemblePageCSS(allComps, globalCSS);
+
+  process.stdout.write(`=== PAGE: ${pageName} ===\n`);
+  process.stdout.write(`=== COMPONENTS: ${page.components.join(', ')} ===\n`);
+  process.stdout.write(`=== Global CSS + ${page.components.length} component CSS blocks ===\n\n`);
+  process.stdout.write(assembled + '\n');
 }
 
 function wrapWithCSS(rootDir: string, componentName: string, innerHTML: string): string {
