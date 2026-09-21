@@ -93,7 +93,37 @@ h1 { font-size: 3rem; }
 }
 ```
 
-Three sections separated by `---`: template, CSS (scoped automatically), JSON schema.
+Three sections separated by `---`: template, CSS (scoped automatically), JSON schema. An empty CSS section (two consecutive `---` lines) is allowed.
+
+### Semantic component authoring
+
+The engine wraps every component in a semantic tag carrying the component's `id` and `class`. **Your template is the inner content only** — do not add a wrapper `<div class="<component-name>">`, because the engine already emits it and the validator warns (`COMPONENT_REDUNDANT_WRAPPER`).
+
+```html
+<!-- ✅ Good: inner content only -->
+<h2>Executive Summary</h2>
+{{html:body}}
+
+<!-- ✅ Good: a grouping element is fine when it is not the component wrapper -->
+<div class="meta">
+  <span>{{text:date}}</span>
+  <span>{{text:audience}}</span>
+</div>
+<h2>{{text:heading}}</h2>
+
+<!-- ❌ Bad: duplicates the engine wrapper -->
+<div class="exec-summary">
+  <h2>Executive Summary</h2>
+  {{html:body}}
+</div>
+
+<!-- ❌ Bad: div soup instead of semantic elements -->
+<div class="features-wrapper">
+  <div class="features-list"><ul>...</ul></div>
+</div>
+```
+
+Assembly (`renderer.ts`): the first component renders as `<header>`, the last (if named `footer`) as `<footer>`, everything else as `<section id="<name>" class="<name>">`. A default footer is appended only when the page has no `footer` component.
 
 ### Placeholder types
 
@@ -163,7 +193,7 @@ failure.
 ## Dev
 
 ```bash
-npm test              # 109 tests
+npm test              # 127 tests
 npm run typecheck     # tsc --noEmit
 npm run dev           # run without building
 ```

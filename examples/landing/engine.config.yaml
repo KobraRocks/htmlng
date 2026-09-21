@@ -1,0 +1,17 @@
+project:
+  name: "htmlng landing example"
+  lang: "en"
+
+paths:
+  components: "components"
+  pages: "pages"
+  data: "data"
+  assets: "assets"
+  build: "build"
+
+build:
+  inlineCSS: false
+
+validation:
+  strict: false
+  requireAltText: true

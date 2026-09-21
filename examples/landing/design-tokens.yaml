@@ -1,0 +1,22 @@
+# Design tokens — resolved into global.css at build time
+primary: "#0b5fff"
+primary-hover: "#0846c4"
+text: "#12141a"
+text-muted: "#5a6270"
+bg: "#ffffff"
+border: "#e3e6ec"
+
+font-family: "system-ui, -apple-system, Segoe UI, sans-serif"
+font-size-base: "1rem"
+font-size-h1: "3rem"
+font-size-h2: "2rem"
+font-size-h3: "1.5rem"
+line-height: "1.6"
+line-height-heading: "1.15"
+
+space-sm: "0.5rem"
+space-md: "1rem"
+space-lg: "2rem"
+space-xl: "4rem"
+
+radius-md: "10px"

@@ -1,0 +1,7 @@
+title: "htmlng — landing example"
+description: "A minimal landing page assembled from isolated components."
+components:
+  - hero
+  - features
+  - cta
+  - footer

@@ -2,8 +2,19 @@
 title: "Evaluation: External CSS & Div Soup in Generated Reports"
 created: 2026-07-07
 tags: [html-engine, semantic-html, css-inline, div-soup, evaluation]
-status: open
+status: resolved
 ---
+
+> **RESOLVED (2026-07-08).** Both halves of this issue are addressed:
+>
+> - **Issue 1 (external CSS)** — `build.inlineCSS: true` in `engine.config.yaml` emits the
+>   CSS in a `<style>` tag instead of `build/css/<page>.css`. Documented in README and SKILL.
+> - **Issue 2 (div soup)** — the no-wrapper rule is now documented in README
+>   ("Semantic component authoring") and AGENTS.md, and `validateComponent` emits a
+>   `COMPONENT_REDUNDANT_WRAPPER` warning when a template wraps all content in
+>   `<div class="<component-name>">`. The scaffold template has no wrapper div.
+>   Item #5 (cleaning components in the separate `reports/` project) remains a
+>   per-project task outside this repo.
 
 # Evaluation: External CSS & Div Soup in Generated Reports
 

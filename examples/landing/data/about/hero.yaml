@@ -1,0 +1,5 @@
+heading: "About this example"
+subtext: "Two pages, one set of components, different data files."
+cta:
+  href: "/"
+  label: "Back home"

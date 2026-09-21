@@ -241,7 +241,7 @@ Until the P0s land, these rules avoid every trap above:
 
 ## 8. Implementation status (updated 2026-07-08)
 
-Phase A, the stack trim, and Phase B are done. Tests: **109 passing** (was 52), `tsc --noEmit` clean.
+Phases A, B, and C plus the stack trim are done. Tests: **127 passing** (was 52), `tsc --noEmit` clean.
 
 | ID | Status | Change |
 |---|---|---|
@@ -262,9 +262,10 @@ Phase A, the stack trim, and Phase B are done. Tests: **109 passing** (was 52), 
 | P1-5 | ✅ Fixed | `create data` emits correct `slot` shape and derives list item keys from the template |
 | P1-7 | ✅ Fixed | dead keys removed (`minify`, `pretty`, `assetFingerprinting`, `maxHeadingLength`); `requireAltText` implemented; `validation.strict` wired |
 | P1-8 | ✅ Fixed | full component map loaded so `{{slot}}` resolves to siblings in `render component` and `render page` |
-| P1-10 | ⬜ Open | single-element array data still omits the `-0` id suffix (Phase B, deferred) |
+| P1-10 | ✅ Fixed | array-data ids are always indexed (`<name>-0`), including a single-element array |
 | P1-11 | ✅ Fixed | `inlineCSS`, `--json`, `context`, `schema`, `explain` documented in README/SKILL |
 | — | ✅ New | `--json` structured output with stable error codes on every command; `htmlng context`; `htmlng schema`; `htmlng explain` |
+| — | ✅ New (Phase C) | root `AGENTS.md`; runnable `examples/landing` + smoke test; docs-conformance test (README/SKILL/HELP ↔ `COMMAND_NAMES`); `schemaVersion` on every `--json` payload; `loadData` honors `config.paths.data`; `COMPONENT_REDUNDANT_WRAPPER` warning |
 | P1-12 | ✅ Fixed | unused `node-html-parser` import + dependency removed |
 | P2-2, P2-3, P2-5, P2-6 | ⬜ Open | escaping hardening, slot-data whitelist, packaging, CI (Phase C/D) |
 

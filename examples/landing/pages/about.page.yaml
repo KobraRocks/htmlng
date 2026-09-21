@@ -1,0 +1,5 @@
+title: "About — htmlng example"
+description: "A second page reusing the same components with different data."
+components:
+  - hero
+  - footer

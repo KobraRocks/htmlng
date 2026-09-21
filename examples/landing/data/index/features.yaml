@@ -1,0 +1,8 @@
+heading: "Why components"
+items:
+  - title: "Isolated edits"
+    description: "Changing one component cannot break another."
+  - title: "Deterministic builds"
+    description: "Same sources, same output, every time."
+  - title: "Scoped CSS"
+    description: "Component CSS is prefixed with the component class automatically."
