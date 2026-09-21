@@ -1,8 +1,8 @@
-import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { join, relative, resolve, sep, extname } from 'node:path';
 import { createTwoFilesPatch } from 'diff';
 import { load, dump } from 'js-yaml';
-import { EngineError } from './types.js';
+import { EngineError, type ErrorJson } from './types.js';
 import { loadConfig } from './config.js';
 import { renderPage, renderComponent, previewComponent, loadDesignTokens, resolveTokens } from './renderer.js';
 import { assemblePageCSS } from './css.js';
@@ -22,10 +22,13 @@ import { validateComponent, validatePageStructure } from './validator.js';
 import { parseComponent, findComponents } from './component.js';
 import { parsePage, findPages } from './page.js';
 import { loadData } from './data-file.js';
+import { FORMAT_SPEC } from './format-spec.js';
+import { ERROR_CATALOG, explainError, allErrorCodes } from './error-catalog.js';
 
 let ROOT = process.cwd();
 let verbose = false;
 let strict = false;
+let jsonMode = false;
 let flags = new Map<string, string | true>();
 
 // ── Output sinks ────────────────────────────────────────
@@ -46,6 +49,31 @@ let io: Io = defaultIo;
 
 function log(...args: unknown[]) { if (verbose) io.err(`[debug] ${args.join(' ')}\n`); }
 
+/** Emit a machine-readable JSON value on stdout. */
+function emit(value: unknown): void {
+  io.out(JSON.stringify(value, null, 2) + '\n');
+}
+
+function emitError(e: EngineError): void {
+  if (jsonMode) emit({ ok: false, errors: [e.toJSON()] });
+  else io.err(e.format() + '\n');
+}
+
+function emitJsonError(code: string, message: string, help?: string): void {
+  if (jsonMode) {
+    const err: ErrorJson = { code, level: 'ERROR', file: '', message, help };
+    emit({ ok: false, errors: [err] });
+  } else {
+    io.err(`ERROR []: ${message}\n${help ? `  ${help}\n` : ''}`);
+  }
+}
+
+/** Print collected warnings; return 1 when `--strict`/config strict is active. */
+function reportWarnings(warnings: EngineError[]): number {
+  for (const w of warnings) io.err(w.format() + '\n');
+  return strict && warnings.length > 0 ? 1 : 0;
+}
+
 // ── Argument parsing ────────────────────────────────────
 
 /** Flags that consume the following token as a value. */
@@ -55,7 +83,7 @@ const VALUE_FLAGS = new Set([
 
 /** Flags that stand alone. */
 const BOOL_FLAGS = new Set([
-  '--all', '--compact', '--with-css', '--watch', '--verbose', '--strict', '--help',
+  '--all', '--compact', '--with-css', '--watch', '--verbose', '--strict', '--json', '--help',
 ]);
 
 interface ParsedArgs {
@@ -77,7 +105,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     if (VALUE_FLAGS.has(token)) {
       const value = argv[i + 1];
       if (value === undefined) {
-        throw new EngineError(`Flag ${token} requires a value`, '', undefined, 'ERROR', 'Run: htmlng --help');
+        throw new EngineError(`Flag ${token} requires a value`, '', undefined, 'ERROR', 'Run: htmlng --help', 'CLI_FLAG_VALUE_MISSING');
       }
       parsed.set(token, value);
       i++;
@@ -86,7 +114,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
     if (BOOL_FLAGS.has(token)) { parsed.set(token, true); continue; }
 
-    throw new EngineError(`Unknown flag: ${token}`, '', undefined, 'ERROR', 'Run: htmlng --help');
+    throw new EngineError(`Unknown flag: ${token}`, '', undefined, 'ERROR', 'Run: htmlng --help', 'CLI_UNKNOWN_FLAG');
   }
 
   return { command: positionals[0] ?? '', args: positionals.slice(1), flags: parsed };
@@ -120,6 +148,9 @@ const handlers: Record<string, Handler> = {
   serve:   cmdServe,
   move:    cmdMove,
   css:     cmdCSS,
+  context: cmdContext,
+  schema:  cmdSchema,
+  explain: cmdExplain,
 };
 
 export const HELP = `HTML Engine — deterministic component-based HTML generator
@@ -146,10 +177,14 @@ Commands:
   list presets                   List available presets
   serve [--port <n>] [--watch]  Start dev server on build/ directory
   css <page>                    Output assembled CSS for a page (global + all component styles)
+  context                       Print the whole project map as JSON (pages, components, data, tokens)
+  schema                        Print the machine-readable file-format spec as JSON
+  explain [<code>]              Explain an error code (lists all codes when omitted)
 
 Flags:
   --verbose    Enable debug logging
-  --strict     Treat warnings as errors
+  --strict     Treat warnings as errors (also honored from validation.strict in config)
+  --json       Machine-readable JSON output (validate, build, render, list, preview, ...)
   --compact    Render without annotation header (render page only)
   --help       Show this help
 
@@ -161,18 +196,23 @@ Page arguments accept both "build page <p>" and "build <p>".
 export async function run(argv: string[], sink: Io = defaultIo): Promise<number> {
   io = sink;
   ROOT = process.cwd();
+  jsonMode = argv.includes('--json');
 
   let parsed: ParsedArgs;
   try {
     parsed = parseArgs(argv);
   } catch (e) {
-    if (e instanceof EngineError) { io.err(e.format() + '\n'); return 1; }
+    if (e instanceof EngineError) { emitError(e); return 1; }
     throw e;
   }
 
   verbose = parsed.flags.has('--verbose');
+  jsonMode = parsed.flags.has('--json');
   strict = parsed.flags.has('--strict');
   flags = parsed.flags;
+
+  // Config-level strict is additive; ignore when there is no config yet (e.g. `init`)
+  try { if (loadConfig(ROOT).validation.strict) strict = true; } catch { /* no config */ }
 
   if (parsed.flags.has('--help') || argv.length === 0) {
     io.out(HELP);
@@ -181,7 +221,7 @@ export async function run(argv: string[], sink: Io = defaultIo): Promise<number>
 
   const handler = handlers[parsed.command];
   if (!handler) {
-    io.err(`Unknown command: ${parsed.command}\nRun: htmlng --help\n`);
+    emitJsonError('CLI_UNKNOWN_COMMAND', `Unknown command: ${parsed.command}`, 'Run: htmlng --help');
     return 1;
   }
 
@@ -189,7 +229,7 @@ export async function run(argv: string[], sink: Io = defaultIo): Promise<number>
     return (await handler(parsed.args)) ?? 0;
   } catch (e) {
     if (e instanceof EngineError) {
-      io.err(e.format() + '\n');
+      emitError(e);
       if (e.level === 'WARNING' && !strict) return 0;
       return 1;
     }
@@ -204,13 +244,14 @@ const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 function requireName(value: string | undefined, label: string, usage: string): string {
   if (!value) {
-    throw new EngineError(`Missing ${label} name`, '', undefined, 'ERROR', `Usage: ${usage}`);
+    throw new EngineError(`Missing ${label} name`, '', undefined, 'ERROR', `Usage: ${usage}`, 'CLI_MISSING_NAME');
   }
   if (!NAME_RE.test(value)) {
     throw new EngineError(
       `Invalid ${label} name "${value}"`,
       '', undefined, 'ERROR',
       `Names must match ${NAME_RE} (letters, digits, "-" and "_"; no path separators).`,
+      'CLI_INVALID_NAME',
     );
   }
   return value;
@@ -219,9 +260,10 @@ function requireName(value: string | undefined, label: string, usage: string): s
 // ── Command handlers ────────────────────────────────────
 
 async function cmdInit(_args: string[]): Promise<number> {
-  initProject(ROOT, flag('--name') ?? undefined);
   const name = flag('--name');
-  io.out(`Initialized project${name ? ` "${name}"` : ''}.\n`);
+  initProject(ROOT, name ?? undefined);
+  if (jsonMode) emit({ ok: true, project: { name: name ?? 'my-project' } });
+  else io.out(`Initialized project${name ? ` "${name}"` : ''}.\n`);
   return 0;
 }
 
@@ -232,31 +274,35 @@ async function cmdCreate(args: string[]): Promise<number> {
     const preset = flag('--preset');
     if (preset) {
       scaffoldPresetComponent(ROOT, name, preset);
-      io.out(`Created components/${name}.component.html from preset "${preset}"\n`);
+      if (jsonMode) emit({ ok: true, kind: 'component', name, preset });
+      else io.out(`Created components/${name}.component.html from preset "${preset}"\n`);
     } else {
       scaffoldComponent(ROOT, name);
-      io.out(`Created components/${name}.component.html\n`);
+      if (jsonMode) emit({ ok: true, kind: 'component', name });
+      else io.out(`Created components/${name}.component.html\n`);
     }
     return 0;
   }
   if (what === 'page') {
     const name = requireName(args[1], 'page', 'htmlng create page <name>');
     scaffoldPage(ROOT, name);
-    io.out(`Created pages/${name}.page.yaml\n`);
+    if (jsonMode) emit({ ok: true, kind: 'page', name });
+    else io.out(`Created pages/${name}.page.yaml\n`);
     return 0;
   }
   if (what === 'data') {
     const comp = requireName(args[1], 'component', 'htmlng create data <component> --page <page>');
     const page = flag('--page');
     if (!page) {
-      io.err('Error: --page <page> is required\n');
+      emitJsonError('CLI_FLAG_MISSING', 'Error: --page <page> is required');
       return 1;
     }
     scaffoldData(ROOT, page, comp);
-    io.out(`Created data/${page}/${comp}.yaml\n`);
+    if (jsonMode) emit({ ok: true, kind: 'data', name: comp, page });
+    else io.out(`Created data/${page}/${comp}.yaml\n`);
     return 0;
   }
-  io.err('Usage: htmlng create component|page|data ...\nRun: htmlng --help\n');
+  emitJsonError('CLI_UNKNOWN_COMMAND', 'Usage: htmlng create component|page|data ...', 'Run: htmlng --help');
   return 1;
 }
 
@@ -266,51 +312,89 @@ async function cmdRender(args: string[]): Promise<number> {
 
   if (sub === 'component') {
     const name = requireName(args[1], 'component', 'htmlng render component <name> --page <page>');
+    const warnings: EngineError[] = [];
+
     if (has('--all')) {
       const config = loadConfig(ROOT);
       const pages = findPages(join(ROOT, config.paths.pages));
+      const rendered: Array<{ page: string; html?: string; error?: ErrorJson }> = [];
       for (const p of pages) {
         try {
           const data = loadData(ROOT, p, name);
           const isEmpty = Array.isArray(data) ? data.length === 0 : Object.keys(data).length === 0;
           if (isEmpty) continue;
-          const html = renderComponent(ROOT, name, p);
-          io.out(`=== COMPONENT: ${name}\n=== PAGE: ${p}\n=== STATUS: rendered\n\n${html}\n`);
+          const html = renderComponent(ROOT, name, p, warnings);
+          if (!jsonMode) io.out(`=== COMPONENT: ${name}\n=== PAGE: ${p}\n=== STATUS: rendered\n\n${html}\n`);
+          rendered.push({ page: p, html });
         } catch (e) {
           if (e instanceof EngineError) {
-            io.out(`=== COMPONENT: ${name}\n=== PAGE: ${p}\n=== STATUS: error\n${e.format()}\n\n`);
+            if (!jsonMode) io.out(`=== COMPONENT: ${name}\n=== PAGE: ${p}\n=== STATUS: error\n${e.format()}\n\n`);
+            rendered.push({ page: p, error: e.toJSON() });
           } else throw e;
         }
       }
-      return 0;
+      if (jsonMode) emit({ ok: true, component: name, results: rendered, warnings: warnings.map((w) => w.toJSON()) });
+      return reportWarnings(warnings);
     }
 
     const page = flag('--page');
     if (!page) {
-      io.err('Error: --page <page> is required (or use --all)\n');
+      emitJsonError('CLI_FLAG_MISSING', 'Error: --page <page> is required (or use --all)', 'Run: htmlng --help');
       return 1;
     }
-    const html = renderComponent(ROOT, name, page);
-    if (withCSS) {
+    const html = renderComponent(ROOT, name, page, warnings);
+
+    if (withCSS && !jsonMode) {
       io.out(wrapWithCSS(ROOT, name, html));
+      return reportWarnings(warnings);
+    }
+
+    const stale = isStale(ROOT, page);
+    const changed = getChangedSources(ROOT, page);
+    const status = stale ? `rendered (changed: ${changed.join(', ') || 'unknown'})` : 'cached (no source changes)';
+
+    if (jsonMode) {
+      emit({
+        ok: true,
+        component: name,
+        page,
+        status: stale ? 'rendered' : 'cached',
+        changed,
+        withCSS,
+        html: withCSS ? wrapWithCSS(ROOT, name, html) : html,
+        warnings: warnings.map((w) => w.toJSON()),
+      });
     } else {
-      const changed = getChangedSources(ROOT, page);
-      const status = isStale(ROOT, page) ? `rendered (changed: ${changed.join(', ') || 'unknown'})` : 'cached (no source changes)';
       io.out(`=== COMPONENT: ${name}\n=== PAGE: ${page}\n=== STATUS: ${status}\n\n${html}\n`);
     }
-    return 0;
+    return reportWarnings(warnings);
   }
 
   if (sub === 'page') {
     const name = requireName(args[1], 'page', 'htmlng render page <name> [--compact]');
     log(`Rendering page: ${name}`);
     const config = loadConfig(ROOT);
-    const html = renderPage(ROOT, name, config.build.inlineCSS);
+    const warnings: EngineError[] = [];
+    const html = renderPage(ROOT, name, config.build.inlineCSS, warnings);
+    const stale = isStale(ROOT, name);
     const changed = getChangedSources(ROOT, name);
-    const status = isStale(ROOT, name)
-      ? `rendered (changed: ${changed.join(', ') || 'unknown'})`
-      : 'cached (no source changes)';
+    const status = stale ? `rendered (changed: ${changed.join(', ') || 'unknown'})` : 'cached (no source changes)';
     const page = parsePage(join(ROOT, config.paths.pages, `${name}.page.yaml`));
+
+    if (jsonMode) {
+      emit({
+        ok: true,
+        page: name,
+        status: stale ? 'rendered' : 'cached',
+        changed,
+        components: page.components,
+        css: config.build.inlineCSS ? 'inline' : `css/${name}.css`,
+        html,
+        warnings: warnings.map((w) => w.toJSON()),
+      });
+      return reportWarnings(warnings);
+    }
+
     if (!has('--compact')) {
       const cssRef = config.build.inlineCSS
         ? `inline <style> (global + ${page.components.length} components)`
@@ -322,10 +406,10 @@ async function cmdRender(args: string[]): Promise<number> {
       );
     }
     io.out(html + '\n');
-    return 0;
+    return reportWarnings(warnings);
   }
 
-  io.err('Usage: htmlng render component|page ...\nRun: htmlng --help\n');
+  emitJsonError('CLI_UNKNOWN_COMMAND', 'Usage: htmlng render component|page ...', 'Run: htmlng --help');
   return 1;
 }
 
@@ -333,6 +417,10 @@ async function cmdPreview(args: string[]): Promise<number> {
   const name = requireName(args[1], 'component', 'htmlng preview component <name> [--with-css]');
   const withCSS = has('--with-css');
   const html = previewComponent(ROOT, name);
+  if (jsonMode) {
+    emit({ ok: true, component: name, withCSS, html: withCSS ? wrapWithCSS(ROOT, name, html) : html });
+    return 0;
+  }
   if (withCSS) {
     io.out(wrapWithCSS(ROOT, name, html));
   } else {
@@ -356,22 +444,37 @@ async function cmdValidate(args: string[]): Promise<number> {
   };
 
   const target = args[0];
+  let scope = 'all';
   if (target === 'page' && args[1]) {
-    collect(() => validatePageStructure(renderPage(ROOT, args[1])));
+    scope = `page:${args[1]}`;
+    collect(() => validatePageStructure(renderPage(ROOT, args[1], false, warnings)));
   } else if (target === 'component' && args[1]) {
+    scope = `component:${args[1]}`;
     const comp = parseComponent(join(ROOT, config.paths.components, `${args[1]}.component.html`));
     collect(() => { warnings.push(...validateComponent(comp)); });
   } else if (target) {
-    io.err(`Usage: htmlng validate [page <p>|component <c>]\nRun: htmlng --help\n`);
+    emitJsonError('CLI_UNKNOWN_COMMAND', `Usage: htmlng validate [page <p>|component <c>]`, 'Run: htmlng --help');
     return 1;
   } else {
-    // Validate every page, collecting all failures instead of stopping at the first
+    // Validate every page and component, collecting all failures instead of stopping at the first
     for (const p of findPages(join(ROOT, config.paths.pages))) {
-      collect(() => validatePageStructure(renderPage(ROOT, p)));
+      collect(() => validatePageStructure(renderPage(ROOT, p, false, warnings)));
     }
     for (const c of findComponents(join(ROOT, config.paths.components))) {
       collect(() => { warnings.push(...validateComponent(parseComponent(join(ROOT, config.paths.components, `${c}.component.html`)))); });
     }
+  }
+
+  const ok = errors.length === 0 && (!strict || warnings.length === 0);
+
+  if (jsonMode) {
+    emit({
+      ok,
+      scope,
+      errors: errors.map((e) => e.toJSON()),
+      warnings: warnings.map((w) => w.toJSON()),
+    });
+    return ok ? 0 : 1;
   }
 
   for (const e of errors) io.err(e.format() + '\n');
@@ -389,6 +492,11 @@ async function cmdValidate(args: string[]): Promise<number> {
   return 0;
 }
 
+interface BuildOutcome {
+  pages: string[];
+  warnings: EngineError[];
+}
+
 /**
  * Render + write pages, and refresh the cache. Single source of truth shared by
  * `build`, `watch`, and `serve --watch`.
@@ -396,7 +504,7 @@ async function cmdValidate(args: string[]): Promise<number> {
  * With no explicit page list, `build/` is wiped first so deleted/renamed pages
  * cannot linger (spec C14). Targeted builds leave other pages untouched.
  */
-function buildPages(pageNames?: string[]): string[] {
+function buildPages(pageNames?: string[]): BuildOutcome {
   const config = loadConfig(ROOT);
   const buildDir = join(ROOT, config.paths.build);
   const targeted = pageNames !== undefined;
@@ -406,9 +514,10 @@ function buildPages(pageNames?: string[]): string[] {
   if (!config.build.inlineCSS) mkdirSync(join(buildDir, 'css'), { recursive: true });
 
   const pages = pageNames ?? findPages(join(ROOT, config.paths.pages));
+  const warnings: EngineError[] = [];
 
   for (const p of pages) {
-    const html = renderPage(ROOT, p, config.build.inlineCSS);
+    const html = renderPage(ROOT, p, config.build.inlineCSS, warnings);
     writeFileSync(join(buildDir, `${p}.html`), html);
 
     if (!config.build.inlineCSS) {
@@ -425,7 +534,7 @@ function buildPages(pageNames?: string[]): string[] {
   }
 
   copyAssets(ROOT);
-  return pages;
+  return { pages, warnings };
 }
 
 /** Resolve an optional page argument: `page <p>`, bare `<p>`, or undefined for all. */
@@ -437,10 +546,17 @@ function pageTarget(args: string[]): string | undefined {
 async function cmdBuild(args: string[]): Promise<number> {
   log('Building...');
   const target = pageTarget(args);
-  const pages = buildPages(target ? [target] : undefined);
+  const { pages, warnings } = buildPages(target ? [target] : undefined);
   const buildDir = join(ROOT, loadConfig(ROOT).paths.build);
-  io.out(`Built ${pages.length} page(s) to ${relative(ROOT, buildDir)}/\n`);
-  return 0;
+  const code = strict && warnings.length > 0 ? 1 : 0;
+
+  if (jsonMode) {
+    emit({ ok: code === 0, pages, warnings: warnings.map((w) => w.toJSON()) });
+  } else {
+    io.out(`Built ${pages.length} page(s) to ${relative(ROOT, buildDir)}/\n`);
+    for (const w of warnings) io.err(w.format() + '\n');
+  }
+  return code;
 }
 
 async function cmdDiff(args: string[]): Promise<number> {
@@ -449,6 +565,7 @@ async function cmdDiff(args: string[]): Promise<number> {
   const target = pageTarget(args);
   const pages = target ? [target] : findPages(join(ROOT, config.paths.pages));
 
+  const patches: Array<{ page: string; patch?: string; note?: string }> = [];
   let allUpToDate = true;
 
   for (const p of pages) {
@@ -458,14 +575,21 @@ async function cmdDiff(args: string[]): Promise<number> {
     try { oldHtml = readFileSync(oldPath, 'utf-8'); } catch { /* no old build */ }
 
     if (oldHtml && oldHtml !== newHtml) {
-      io.out(createTwoFilesPatch(`${p}.html`, `${p}.html`, oldHtml, newHtml) + '\n');
       allUpToDate = false;
+      const patch = createTwoFilesPatch(`${p}.html`, `${p}.html`, oldHtml, newHtml);
+      patches.push({ page: p, patch });
+      if (!jsonMode) io.out(patch + '\n');
     } else if (!oldHtml) {
-      io.out(`=== PAGE: ${p} === (no previous build to diff against)\n`);
       allUpToDate = false;
+      patches.push({ page: p, note: 'no previous build to diff against' });
+      if (!jsonMode) io.out(`=== PAGE: ${p} === (no previous build to diff against)\n`);
     }
   }
 
+  if (jsonMode) {
+    emit({ ok: true, upToDate: allUpToDate, patches });
+    return 0;
+  }
   if (allUpToDate && pages.length > 0) {
     io.out('All pages up to date.\n');
   }
@@ -507,8 +631,9 @@ async function cmdWatch(_args: string[]): Promise<number> {
     if (pages.length === 0) return;
 
     try {
-      buildPages(pages);
+      const { warnings } = buildPages(pages);
       io.out(`=== REBUILT: ${pages.join(', ')} (changed: ${rel})\n`);
+      for (const w of warnings) io.err(w.format() + '\n');
     } catch (e) {
       if (e instanceof EngineError) io.err(e.format() + '\n');
       else throw e;
@@ -525,7 +650,7 @@ async function cmdAdd(args: string[]): Promise<number> {
   const name = idx !== -1 ? args[idx + 1] : undefined;
   const page = flag('--page');
   if (!name || !page) {
-    io.err('Usage: htmlng add component <name> --page <page>\n');
+    emitJsonError('CLI_MISSING_NAME', 'Usage: htmlng add component <name> --page <page>', 'Run: htmlng --help');
     return 1;
   }
 
@@ -534,7 +659,8 @@ async function cmdAdd(args: string[]): Promise<number> {
   const p = parsePage(pagePath);
 
   if (p.components.includes(name)) {
-    io.out(`Component "${name}" is already in page "${page}".\n`);
+    if (jsonMode) emit({ ok: true, page, component: name, alreadyPresent: true });
+    else io.out(`Component "${name}" is already in page "${page}".\n`);
     return 0;
   }
 
@@ -544,7 +670,8 @@ async function cmdAdd(args: string[]): Promise<number> {
   const raw = load(readFileSync(pagePath, 'utf-8')) as Record<string, unknown>;
   raw.components = p.components;
   writeFileSync(pagePath, dump(raw, { lineWidth: -1 }));
-  io.out(`Added "${name}" to page "${page}".\n`);
+  if (jsonMode) emit({ ok: true, page, component: name, alreadyPresent: false });
+  else io.out(`Added "${name}" to page "${page}".\n`);
   return 0;
 }
 
@@ -552,36 +679,122 @@ async function cmdList(args: string[]): Promise<number> {
   const config = loadConfig(ROOT);
   const what = args[0];
 
+  let kind = what;
+  let items: string[] = [];
+
   if (what === 'presets') {
-    io.out(listPresets(ROOT).join('\n') + '\n');
-    return 0;
-  }
-  if (what === 'pages') {
-    io.out(findPages(join(ROOT, config.paths.pages)).join('\n') + '\n');
-    return 0;
-  }
-  if (what === 'components') {
-    io.out(findComponents(join(ROOT, config.paths.components)).join('\n') + '\n');
-    return 0;
-  }
-  if (what === 'data') {
+    items = listPresets(ROOT);
+  } else if (what === 'pages') {
+    items = findPages(join(ROOT, config.paths.pages));
+  } else if (what === 'components') {
+    items = findComponents(join(ROOT, config.paths.components));
+  } else if (what === 'data') {
     const page = args[1];
     if (!page) {
-      io.err('Usage: htmlng list data <page>\n');
+      emitJsonError('CLI_MISSING_NAME', 'Usage: htmlng list data <page>', 'Run: htmlng --help');
       return 1;
     }
+    kind = `data:${page}`;
     try {
       const { readdirSync } = await import('node:fs');
-      const files = readdirSync(join(ROOT, config.paths.data, page)).filter(f => f.endsWith('.yaml'));
-      io.out(files.map(f => f.replace('.yaml', '')).join('\n') + '\n');
+      items = readdirSync(join(ROOT, config.paths.data, page))
+        .filter((f) => f.endsWith('.yaml'))
+        .map((f) => f.replace('.yaml', ''));
     } catch {
-      io.out('(no data files)\n');
+      items = [];
+    }
+  } else {
+    emitJsonError('CLI_UNKNOWN_COMMAND', 'Usage: htmlng list pages|components|data <page>|presets', 'Run: htmlng --help');
+    return 1;
+  }
+
+  if (jsonMode) emit({ ok: true, kind, items });
+  else io.out(items.join('\n') + (items.length > 0 ? '\n' : '(none)\n'));
+  return 0;
+}
+
+async function cmdContext(_args: string[]): Promise<number> {
+  const config = loadConfig(ROOT);
+  const compDir = join(ROOT, config.paths.components);
+
+  const components = findComponents(compDir).map((name) => {
+    try {
+      const comp = parseComponent(join(compDir, `${name}.component.html`));
+      return {
+        name,
+        schema: comp.schema,
+        hasCSS: comp.css.trim().length > 0,
+        templateBytes: comp.template.length,
+      };
+    } catch (e) {
+      return { name, error: e instanceof EngineError ? e.toJSON() : { message: String(e) } };
+    }
+  });
+
+  const pages = findPages(join(ROOT, config.paths.pages)).map((name) => {
+    const dataDir = join(ROOT, config.paths.data, name);
+    try {
+      const page = parsePage(join(ROOT, config.paths.pages, `${name}.page.yaml`));
+      const comps = page.components.map((c) => {
+        const dataPath = join(dataDir, `${c}.yaml`);
+        const present = existsSync(dataPath);
+        let dataShape: 'object' | 'array' | 'missing' = 'missing';
+        let itemCount = 0;
+        if (present) {
+          const d = loadData(ROOT, name, c);
+          if (Array.isArray(d)) { dataShape = 'array'; itemCount = d.length; }
+          else { dataShape = 'object'; itemCount = 1; }
+        }
+        return { name: c, dataShape, itemCount, dataFile: relative(ROOT, dataPath) };
+      });
+      let stale = true;
+      try { stale = isStale(ROOT, name); } catch { /* unreadable */ }
+      return { name, title: page.title, description: page.description, components: comps, stale };
+    } catch (e) {
+      return { name, error: e instanceof EngineError ? e.toJSON() : { message: String(e) } };
+    }
+  });
+
+  emit({
+    ok: true,
+    root: ROOT,
+    project: config.project,
+    config,
+    tokens: loadDesignTokens(ROOT),
+    components,
+    pages,
+    presets: listPresets(ROOT),
+  });
+  return 0;
+}
+
+async function cmdSchema(_args: string[]): Promise<number> {
+  emit(FORMAT_SPEC);
+  return 0;
+}
+
+async function cmdExplain(args: string[]): Promise<number> {
+  const code = args[0];
+
+  if (!code) {
+    if (jsonMode) {
+      emit({ ok: true, codes: allErrorCodes().map((c) => ({ code: c, ...ERROR_CATALOG[c] })) });
+    } else {
+      for (const c of allErrorCodes()) {
+        io.out(`${c}\n  ${ERROR_CATALOG[c].summary}\n`);
+      }
     }
     return 0;
   }
 
-  io.err('Usage: htmlng list pages|components|data <page>|presets\nRun: htmlng --help\n');
-  return 1;
+  const entry = explainError(code);
+  if (!entry) {
+    emitJsonError('CLI_UNKNOWN_ERROR_CODE', `Unknown error code: ${code}`, 'Run "htmlng explain" to list every code.');
+    return 1;
+  }
+  if (jsonMode) emit({ ok: true, code, ...entry });
+  else io.out(`${code}\n  ${entry.summary}\n  Fix: ${entry.fix}\n`);
+  return 0;
 }
 
 async function cmdServe(args: string[]): Promise<number> {
@@ -591,8 +804,6 @@ async function cmdServe(args: string[]): Promise<number> {
   const watching = has('--watch');
 
   const { createServer } = await import('node:http');
-  const { existsSync } = await import('node:fs');
-  const { extname } = await import('node:path');
 
   const MIME: Record<string, string> = {
     '.html': 'text/html',
@@ -695,11 +906,12 @@ async function cmdSave(args: string[]): Promise<number> {
   const idx = args.indexOf('component');
   const compName = idx !== -1 ? args[idx + 1] : undefined;
   if (!compName || !presetName) {
-    io.err('Usage: htmlng save component <name> --as-preset <preset-name>\n');
+    emitJsonError('CLI_MISSING_NAME', 'Usage: htmlng save component <name> --as-preset <preset-name>');
     return 1;
   }
   savePreset(ROOT, compName, presetName);
-  io.out(`Saved "${compName}" as preset "${presetName}".\n`);
+  if (jsonMode) emit({ ok: true, component: compName, preset: presetName });
+  else io.out(`Saved "${compName}" as preset "${presetName}".\n`);
   return 0;
 }
 
@@ -710,7 +922,7 @@ async function cmdMove(args: string[]): Promise<number> {
   const before = flag('--before');
   const after = flag('--after');
   if (!name || !page || (!before && !after)) {
-    io.err('Usage: htmlng move component <name> --page <page> --before|--after <other>\n');
+    emitJsonError('CLI_MISSING_NAME', 'Usage: htmlng move component <name> --page <page> --before|--after <other>');
     return 1;
   }
 
@@ -720,14 +932,14 @@ async function cmdMove(args: string[]): Promise<number> {
 
   const current = p.components.indexOf(name);
   if (current === -1) {
-    io.err(`Component "${name}" not in page "${page}".\n`);
+    emitJsonError('COMPONENT_NOT_FOUND', `Component "${name}" not in page "${page}".`);
     return 1;
   }
 
   const target = before ?? after!;
   const targetIdx = p.components.indexOf(target);
   if (targetIdx === -1) {
-    io.err(`Component "${target}" not in page "${page}".\n`);
+    emitJsonError('COMPONENT_NOT_FOUND', `Component "${target}" not in page "${page}".`);
     return 1;
   }
 
@@ -738,14 +950,15 @@ async function cmdMove(args: string[]): Promise<number> {
   const raw = load(readFileSync(pagePath, 'utf-8')) as Record<string, unknown>;
   raw.components = p.components;
   writeFileSync(pagePath, dump(raw, { lineWidth: -1 }));
-  io.out(`Moved "${name}" ${before ? 'before' : 'after'} "${target}" in page "${page}".\n`);
+  if (jsonMode) emit({ ok: true, page, component: name, [before ? 'before' : 'after']: target });
+  else io.out(`Moved "${name}" ${before ? 'before' : 'after'} "${target}" in page "${page}".\n`);
   return 0;
 }
 
 async function cmdCSS(args: string[]): Promise<number> {
   const pageName = args[0];
   if (!pageName) {
-    io.err('Usage: htmlng css <page>\n');
+    emitJsonError('CLI_MISSING_NAME', 'Usage: htmlng css <page>');
     return 1;
   }
 
@@ -759,6 +972,11 @@ async function cmdCSS(args: string[]): Promise<number> {
   globalCSS = resolveTokens(globalCSS, loadDesignTokens(ROOT));
 
   const assembled = assemblePageCSS(allComps, globalCSS);
+
+  if (jsonMode) {
+    emit({ ok: true, page: pageName, components: page.components, css: assembled });
+    return 0;
+  }
 
   io.out(`=== PAGE: ${pageName} ===\n`);
   io.out(`=== COMPONENTS: ${page.components.join(', ')} ===\n`);

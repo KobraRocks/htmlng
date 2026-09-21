@@ -82,7 +82,31 @@ htmlng list pages|components|data [<p>] # List resources
 htmlng list presets                   # List available presets
 htmlng watch                           # Watch, rebuild, and write to build/ on change
 htmlng serve [--port <n>] [--watch]    # Start dev server (--watch auto-reloads on file change)
+htmlng context                         # Whole project map as JSON (pages, components, data shapes, tokens, staleness)
+htmlng schema                          # Machine-readable file-format spec as JSON
+htmlng explain [<code>]                # Explain an error code (lists all codes when omitted)
 ```
+
+### Machine-readable output (preferred for agents)
+
+Add `--json` to `validate`, `build`, `render`, `preview`, `list`, `diff`, and the
+scaffolding commands to get a single JSON object on stdout:
+
+```bash
+htmlng --json validate
+# {"ok":false,"errors":[{"code":"SCHEMA_VALIDATION","level":"ERROR",
+#   "file":"data/index/hero.yaml","message":"Schema validation failed: /heading must be string (got number)"}],
+#  "warnings":[]}
+
+htmlng --json build          # {"ok":true,"pages":["index"],"warnings":[]}
+htmlng --json render page index   # {page, components, html, status, changed, warnings}
+```
+
+Every error carries a stable `code`; run `htmlng explain <code>` for the meaning and a
+fix recipe. `htmlng context` and `htmlng schema` always emit JSON.
+
+**Discover before you guess:** `htmlng context` is the fastest way to learn which pages,
+components, data files, and tokens exist before editing.
 
 ## Design tokens
 

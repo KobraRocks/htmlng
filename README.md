@@ -63,6 +63,9 @@ htmlng build                                # write to disk
 | `htmlng watch` | Watch files, rebuild, and write to build/ on change |
 | `htmlng serve [--port <n>] [--watch]` | Start dev server on build/ directory (--watch enables hot reload) |
 | `htmlng css <page>` | Print assembled CSS (global + all component styles) for a page |
+| `htmlng context` | Print the whole project map as JSON (pages, components, data shapes, tokens, staleness) |
+| `htmlng schema` | Print the machine-readable file-format spec as JSON |
+| `htmlng explain [<code>]` | Explain an error code (lists all codes when omitted) |
 
 ## How It Works
 
@@ -129,7 +132,27 @@ Set `build.inlineCSS: true` in `engine.config.yaml` to emit the CSS in a `<style
 # engine.config.yaml
 build:
   inlineCSS: true
+validation:
+  strict: false          # treat warnings as errors
+  requireAltText: true   # image placeholders must provide alt
 ```
+
+## Built for agents
+
+Every command supports `--json` for machine-readable output, errors carry stable
+codes, and three discovery commands replace guesswork:
+
+```bash
+htmlng context                 # whole project map: pages, components, data shapes, tokens, staleness
+htmlng schema                  # machine-readable file-format spec
+htmlng explain SCHEMA_VALIDATION   # what an error code means and how to fix it
+htmlng --json validate         # {"ok":false,"errors":[{"code":"SCHEMA_VALIDATION", ...}]}
+htmlng --json build            # {"ok":true,"pages":["index"],"warnings":[]}
+```
+
+`--strict` (or `validation.strict: true` in config) makes warnings fail the command.
+`validate` exits non-zero whenever any error is present and never reports success on
+failure.
 
 ## Docs
 
@@ -140,7 +163,7 @@ build:
 ## Dev
 
 ```bash
-npm test              # 88 tests
+npm test              # 109 tests
 npm run typecheck     # tsc --noEmit
 npm run dev           # run without building
 ```

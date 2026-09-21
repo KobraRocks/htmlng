@@ -241,7 +241,7 @@ Until the P0s land, these rules avoid every trap above:
 
 ## 8. Implementation status (updated 2026-07-08)
 
-Phase A + the stack trim from `cli-stack-evaluation.md` are done. Tests: **88 passing** (was 52), `tsc --noEmit` clean.
+Phase A, the stack trim, and Phase B are done. Tests: **109 passing** (was 52), `tsc --noEmit` clean.
 
 | ID | Status | Change |
 |---|---|---|
@@ -256,14 +256,15 @@ Phase A + the stack trim from `cli-stack-evaluation.md` are done. Tests: **88 pa
 | P2-1 | ✅ Fixed | `serve` confines requests to `build/` (403 on traversal); MIME table extended |
 | P2-4 | ✅ Fixed | build tools moved to `devDependencies`; `engines.node >= 22`; `node-html-parser` + `ajv` removed |
 | — | ✅ Extra | footer-collision fix: a `footer` component that is not last no longer produces a duplicate `id="footer"`; `EPIPE` on piping to `head`/`grep` exits quietly instead of crashing |
-| P1-2 | ⬜ Open | cache still ignores `design-tokens.yaml` / `engine.config.yaml` (Phase B) |
-| P1-3 | 🟡 Partial | `--strict` now affects `validate` warnings; render/build warnings still discarded (Phase B) |
-| P1-4 | ⬜ Open | `validatePageData` warnings still not surfaced during render/build (Phase B) |
-| P1-5 | ⬜ Open | `create data` still emits `src: null` for `slot`, hardcodes list keys (Phase B) |
-| P1-7 | ⬜ Open | dead config keys (`minify`, `pretty`, `assetFingerprinting`, `requireAltText`, `maxHeadingLength`) (Phase B) |
-| P1-8 | ⬜ Open | `render component` still can't resolve `{{slot}}` to siblings (Phase B) |
-| P1-10 | ⬜ Open | single-element array data still omits the `-0` id suffix (Phase B) |
-| P1-11 | 🟡 Partial | `inlineCSS` documented in README; `htmlng css` added to README table |
+| P1-2 | ✅ Fixed | cache now tracks `design-tokens.yaml` and `engine.config.yaml` |
+| P1-3 | ✅ Fixed | `--strict` (and `validation.strict`) fails on warnings in `validate`, `render`, `build` |
+| P1-4 | ✅ Fixed | `renderPage`/`renderComponent` collect warnings; surfaced in render/build/validate and in `--json` |
+| P1-5 | ✅ Fixed | `create data` emits correct `slot` shape and derives list item keys from the template |
+| P1-7 | ✅ Fixed | dead keys removed (`minify`, `pretty`, `assetFingerprinting`, `maxHeadingLength`); `requireAltText` implemented; `validation.strict` wired |
+| P1-8 | ✅ Fixed | full component map loaded so `{{slot}}` resolves to siblings in `render component` and `render page` |
+| P1-10 | ⬜ Open | single-element array data still omits the `-0` id suffix (Phase B, deferred) |
+| P1-11 | ✅ Fixed | `inlineCSS`, `--json`, `context`, `schema`, `explain` documented in README/SKILL |
+| — | ✅ New | `--json` structured output with stable error codes on every command; `htmlng context`; `htmlng schema`; `htmlng explain` |
 | P1-12 | ✅ Fixed | unused `node-html-parser` import + dependency removed |
 | P2-2, P2-3, P2-5, P2-6 | ⬜ Open | escaping hardening, slot-data whitelist, packaging, CI (Phase C/D) |
 
