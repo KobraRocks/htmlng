@@ -127,6 +127,7 @@ Exit codes: `0` success, `1` any failure. Prefer `--json` over parsing prose.
 | `DATA_KEY_UNUSED` (warning) | Data file has a key the schema does not define. |
 | `TEXT_BLOCK_TAG` | Block tag in a `text` field — use `{{html:field}}`. |
 | `TEXT_TAG_DISALLOWED` / `TEXT_ATTR_DISALLOWED` | Inline tag/attribute outside the whitelist. |
+| `UNSAFE_URL` | `javascript:`/`vbscript:`/`file:`/`blob:` or a disallowed `data:` URL. Use http(s), mailto, tel, `#fragment`, or a relative path. |
 | `COMPONENT_NOT_FOUND` | Page references a missing component file. |
 | `COMPONENT_SECTIONS_MISSING` | Missing `---` separator (or the file uses CRLF incorrectly — now supported). |
 | `PAGE_DUPLICATE_ID` | Two elements share an id — often a `footer` component not placed last. |

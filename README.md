@@ -193,7 +193,7 @@ failure.
 ## Dev
 
 ```bash
-npm test              # 127 tests
+npm test              # 156 tests
 npm run typecheck     # tsc --noEmit
 npm run dev           # run without building
 ```

@@ -128,6 +128,7 @@ export function initProject(rootDir: string, name?: string): void {
   mkdirSync(join(rootDir, 'components'), { recursive: true });
   mkdirSync(join(rootDir, 'pages'), { recursive: true });
   mkdirSync(join(rootDir, 'data'), { recursive: true });
+  mkdirSync(join(rootDir, 'assets'), { recursive: true });
   mkdirSync(join(rootDir, 'presets'), { recursive: true });
 
   writeFileSync(

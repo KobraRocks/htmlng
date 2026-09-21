@@ -300,7 +300,11 @@ Common errors:
 - `Schema validation failed: /field must be string` — data file has wrong type or null instead of empty string
 - `Disallowed tag <script> in text field` — text field contains forbidden HTML tag
 - `Block-level tag <div> not allowed in text field` — use `{{html:field}}` instead
+- `Unsafe link href in "x": "javascript:" URLs are not allowed` — use http(s), mailto, tel, `#fragment`, or a relative path
+- `Image "x" is missing alt text` — add `alt:` (empty string is allowed), or set `validation.requireAltText: false`
 - `Component not found` — component name typo or file missing
+
+Run `htmlng explain <CODE>` for the full catalog (codes appear in `--json` output).
 
 ## Important constraints
 

@@ -241,7 +241,7 @@ Until the P0s land, these rules avoid every trap above:
 
 ## 8. Implementation status (updated 2026-07-08)
 
-Phases A, B, and C plus the stack trim are done. Tests: **127 passing** (was 52), `tsc --noEmit` clean.
+Phases A, B, C, and D plus the stack trim are done. Tests: **156 passing** (was 52), `tsc --noEmit` clean. CI runs typecheck + tests + build + an example smoke test on Node 22 and 24.
 
 | ID | Status | Change |
 |---|---|---|
@@ -267,5 +267,6 @@ Phases A, B, and C plus the stack trim are done. Tests: **127 passing** (was 52)
 | — | ✅ New | `--json` structured output with stable error codes on every command; `htmlng context`; `htmlng schema`; `htmlng explain` |
 | — | ✅ New (Phase C) | root `AGENTS.md`; runnable `examples/landing` + smoke test; docs-conformance test (README/SKILL/HELP ↔ `COMMAND_NAMES`); `schemaVersion` on every `--json` payload; `loadData` honors `config.paths.data`; `COMPONENT_REDUNDANT_WRAPPER` warning |
 | P1-12 | ✅ Fixed | unused `node-html-parser` import + dependency removed |
-| P2-2, P2-3, P2-5, P2-6 | ⬜ Open | escaping hardening, slot-data whitelist, packaging, CI (Phase C/D) |
+| P2-2, P2-3, P2-5, P2-6 | ✅ Fixed | `escapeAttr` now escapes `& < > " '`; slot sub-data is validated against the nested schema (text whitelist + URL + alt); `init` creates `assets/`; package metadata + GitHub Actions CI added; unit tests cover config/page/data-file/propagation/copier/url-safety |
+| — | ✅ New (Phase D) | URL-scheme safety (`UNSAFE_URL`) for link/image/text hrefs, rejecting `javascript:`/`vbscript:`/`file:`/`blob:` and unsafe `data:` URLs |
 
