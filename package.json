@@ -5,22 +5,26 @@
   "bin": {
     "htmlng": "./dist/index.js"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
+    "dev:build": "tsc --watch",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^26.1.0",
-    "ajv": "^8.20.0",
     "chokidar": "^5.0.0",
     "diff": "^9.0.0",
-    "js-yaml": "^5.2.1",
-    "node-html-parser": "^8.0.4",
+    "js-yaml": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.1.0",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

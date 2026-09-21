@@ -24,7 +24,7 @@ htmlng <command>
 
 To update after code changes:
 ```bash
-cd ~/Pi/projects/html-htmlng && npx tsc
+cd ~/Pi/projects/html-engine && npx tsc
 ```
 
 ## Commands
@@ -57,10 +57,14 @@ htmlng preview component <c> [--with-css]  # Preview with sample data
 ### Validation
 
 ```bash
-htmlng validate                        # Validate all pages
+htmlng validate                        # Validate all pages and components
 htmlng validate page <p>              # Validate one page
 htmlng validate component <c>         # Validate one component
 ```
+
+`validate` exits non-zero on any error and prints `Validation failed: N error(s).`
+Only a clean run prints `Validation passed.` Use the exit code (or `--strict` to
+also fail on warnings) to decide whether to build.
 
 ### Build & Diff
 
@@ -76,7 +80,7 @@ htmlng add component <c> --page <p>    # Add component to page
 htmlng move component <c> --page <p> --before|--after <other>  # Reorder component
 htmlng list pages|components|data [<p>] # List resources
 htmlng list presets                   # List available presets
-htmlng watch                           # Watch files and rebuild on change
+htmlng watch                           # Watch, rebuild, and write to build/ on change
 htmlng serve [--port <n>] [--watch]    # Start dev server (--watch auto-reloads on file change)
 ```
 

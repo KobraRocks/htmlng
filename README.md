@@ -53,15 +53,16 @@ htmlng build                                # write to disk
 | `htmlng render component <c> --page <p> --with-css` | Render with compiled CSS for style preview |
 | `htmlng render page <p> [--compact]` | Render full page to stdout |
 | `htmlng preview component <c> [--with-css]` | Preview with sample data |
-| `htmlng validate` | Validate all pages |
-| `htmlng build [page <p>]` | Write pages to build/ directory |
+| `htmlng validate` | Validate all pages and components (exits non-zero on errors) |
+| `htmlng build [page <p>]` | Write pages to build/ directory (wipes build/ when building all; use `build <p>` for one page) |
 | `htmlng diff [page <p>]` | Show unified diff vs last build |
 | `htmlng add component <c> --page <p>` | Add component to page |
 | `htmlng move component <c> --page <p> --before\|--after <other>` | Reorder component in page |
 | `htmlng save component <c> --as-preset <name>` | Save component as reusable preset |
 | `htmlng list presets` | List available presets |
-| `htmlng watch` | Watch files and rebuild on change |
+| `htmlng watch` | Watch files, rebuild, and write to build/ on change |
 | `htmlng serve [--port <n>] [--watch]` | Start dev server on build/ directory (--watch enables hot reload) |
+| `htmlng css <page>` | Print assembled CSS (global + all component styles) for a page |
 
 ## How It Works
 
@@ -120,6 +121,16 @@ space-xl: "6rem"        # section spacing
 
 `global.css` uses `{{token-name}}` placeholders resolved at build time.
 
+### Single-file output (inlined CSS)
+
+Set `build.inlineCSS: true` in `engine.config.yaml` to emit the CSS in a `<style>` tag instead of a separate `build/css/<page>.css` file — useful for self-contained reports you can move or email as one file:
+
+```yaml
+# engine.config.yaml
+build:
+  inlineCSS: true
+```
+
 ## Docs
 
 - [Functional specification](specs/html-engine.md)
@@ -129,7 +140,7 @@ space-xl: "6rem"        # section spacing
 ## Dev
 
 ```bash
-npm test              # 52 tests
+npm test              # 88 tests
 npm run typecheck     # tsc --noEmit
 npm run dev           # run without building
 ```

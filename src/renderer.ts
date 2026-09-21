@@ -123,9 +123,11 @@ export function renderPage(rootDir: string, pageName: string, inlineCSS = false)
     }
   }
 
-  // Default footer if last component isn't "footer"
-  const lastComp = renderedComponents[renderedComponents.length - 1];
-  if (lastComp.name !== 'footer') {
+  // Default footer only when the page defines no `footer` component at all.
+  // (If a `footer` component exists but is not last, it is wrapped by position —
+  // emitting a second `id="footer"` would fail the duplicate-id check.)
+  const hasFooterComponent = renderedComponents.some((r) => r.name === 'footer');
+  if (!hasFooterComponent) {
     const year = new Date().getFullYear();
     const projectName = config.project.name || 'Untitled';
     body += `  <footer id="footer" class="footer">\n    <p>&copy; ${year} ${escapeHtml(projectName)}.</p>\n  </footer>\n`;

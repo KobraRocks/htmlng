@@ -1,5 +1,10 @@
 # Issue: node-html-parser v8.0.4 drops `<body>` on complex nested sections
 
+> **RESOLVED (2026-07-08)**: `node-html-parser` was removed entirely. It was already
+> unused — `validatePageStructure` is regex-based — so the dependency and its bug are
+> gone. See `issues/new/cli-stack-evaluation.md`. No parser upgrade (parse5) is needed
+> because component templates are not valid HTML and a parser is the wrong tool here.
+
 **Severity**: High (blocked rendering)  
 **Found during**: Building demo page with 5 components
 

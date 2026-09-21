@@ -25,19 +25,36 @@ Every dependency below was chosen by asking: *"Will the AI understand this API f
 
 ## 2. Dependencies — minimal set
 
-### 2.1 Production dependencies (5 total)
+### 2.1 Production dependencies (3 total)
 
 ```
-npm install js-yaml ajv node-html-parser chokidar diff
+npm install js-yaml chokidar diff
 ```
 
 | Package | Version | Purpose | Why this, not that |
 |---------|---------|---------|-------------------|
-| `js-yaml` | ^4 | Parse `.yaml` data files and page configs | Standard, predictable `load()` / `dump()` |
-| `ajv` | ^8 | Validate data against component JSON schemas | `ajv.compile(schema)` → `validate(data)` — two lines |
-| `node-html-parser` | ^6 | Parse component templates, assemble pages | Standard DOM API: `querySelector()`, `innerHTML`, `textContent`, `setAttribute()`. More predictable than cheerio's jQuery-flavored API. |
-| `chokidar` | ^4 | File watching for `engine watch` | `chokidar.watch(dir, { ignored: ... }).on('change', fn)` — one pattern |
-| `diff` | ^7 | Unified diffs for `engine diff` | `diff.createTwoFilesPatch(old, new, oldFile, newFile)` — one function |
+| `js-yaml` | ^5 | Parse `.yaml` data files and page configs | Standard, predictable `load()` / `dump()` |
+| `chokidar` | ^5 | File watching for `engine watch` | `chokidar.watch(dir, { ignored: ... }).on('change', fn)` — one pattern |
+| `diff` | ^9 | Unified diffs for `engine diff` | `diff.createTwoFilesPatch(old, new, oldFile, newFile)` — one function |
+
+> **Superseded (§2.1)**: `ajv` and `node-html-parser` were removed after measurement.
+> `ajv` cost ~20 ms of every CLI invocation (over half the fixed startup) to validate a
+> tiny dialect (`type`, `required`, `maxLength`) and could not express the engine's real
+> schema (image/link/slot sub-fields). It is replaced by a hand-rolled validator in
+> `src/schema.ts` (~50 lines) that *does* check sub-fields. `node-html-parser` was already
+> unused — structure validation is regex-based (`src/validator.ts`) because the parser
+> dropped `<body>` on nested sections (see `issues/new/06-node-html-parser-body-bug.md`).
+>
+> Build/test tooling (`typescript`, `tsx`, `vitest`, `@types/*`) now lives in
+> `devDependencies`, and `package.json` declares `engines.node >= 22`.
+
+**No schema library.** `src/schema.ts` is a small hand-written validator covering exactly
+the supported dialect: `type`, `required`, `maxLength`, plus object sub-fields for
+`image` (`src`), `link` (`href`, `label`), and `slot` (`component`).
+
+**No HTML parser.** Component templates are tokenized by the custom template engine, and
+the assembled page is validated with intentional string checks. Templates are not valid
+HTML before rendering, so a DOM parser is the wrong tool (see §7.2).
 
 **No CSS parsing library.** The scoping algorithm (§6.2) is simple string manipulation:
 
@@ -69,7 +86,7 @@ npm install -D typescript @types/node @types/js-yaml tsx vitest
 | `tsx` | Run TypeScript directly during development (`tsx src/index.ts render page index`) |
 | `vitest` | Test runner + assertion library (fast, TypeScript-native, Jest-compatible API) |
 
-> **Note on types**: `diff` v7+ and `node-html-parser` v6+ ship their own TypeScript declarations — no `@types/` packages needed for them. `js-yaml` requires `@types/js-yaml`.
+> **Note on types**: `diff` v9+ and `chokidar` v5+ ship their own TypeScript declarations — no `@types/` packages needed for them. `js-yaml` requires `@types/js-yaml`.
 
 ### 2.3 vitest.config.ts
 
@@ -144,7 +161,7 @@ html-engine/
     renderer.ts           # Page assembler (header/section/footer)
     validator.ts          # All build-time validation checks
     text-validator.ts     # Text field tag whitelist
-    schema.ts             # ajv wrapper
+    schema.ts             # hand-rolled typed validator (type/required/maxLength + sub-fields)
     config.ts             # engine.config.yaml parser
     page.ts               # Page YAML parser
     data-file.ts          # Data file parser + lookup
@@ -440,7 +457,7 @@ The AI should build in this sequence — each step produces testable output:
 | 5 | `text-validator.ts` — tag whitelist | `validateText(value)` throws or returns |
 | 6 | `css.ts` — CSS scoping + assembly | `scopeCSS(css, className)` returns prefixed CSS |
 | 7 | `data-file.ts` — YAML data file loading | `loadData(page, component)` returns data object |
-| 8 | `schema.ts` — ajv validation wrapper | `validate(schema, data)` returns errors array |
+| 8 | `schema.ts` — hand-rolled typed validator | `validateData(schema, data)` returns an errors array |
 | 9 | `validator.ts` — all build-time checks | `validateComponent()`, `validatePage()` throw EngineError |
 | 10 | `page.ts` — page YAML parser | Returns typed Page object |
 | 11 | `renderer.ts` — page assembly | `renderPage(name)` returns full HTML string |
@@ -481,9 +498,9 @@ Component templates contain `{{placeholder}}` syntax which is not valid HTML. Th
 
 1. **Template parsing**: Read the raw template string, extract placeholders with regex. This happens BEFORE HTML parsing.
 2. **Placeholder resolution**: Replace `{{text:heading}}` with the actual text value.
-3. **HTML parsing**: Only NOW parse the resolved HTML string with `node-html-parser` — for structure validation, CSS leakage detection, and final assembly.
+3. **Structure validation**: Validate the assembled HTML string with intentional regex checks (`validatePageStructure`) — body children, duplicate ids. A DOM parser is deliberately not used (see the removed `node-html-parser` note in §2.1).
 
-`node-html-parser` should never see a raw `{{placeholder}}`. If it does, it may treat `{{` as text content, close tags prematurely, or produce a mangled DOM tree.
+The string checks should run only on the *resolved* HTML. Templates contain raw `{{placeholder}}` tokens and are not valid HTML.
 
 ### 7.3 Template engine gotchas
 
@@ -526,7 +543,7 @@ Component templates contain `{{placeholder}}` syntax which is not valid HTML. Th
 | #4 `<nav>` support | No | One `if` branch in `renderer.ts` |
 | #5 Multi-page data | No | Extend `data-file.ts` resolution order |
 | #6 Incremental builds | No | Already have `hasher.ts` + `propagation.ts` |
-| #7 HTML-aware diff | No | Already have `node-html-parser` for DOM comparison |
+| #7 HTML-aware diff | Would need a parser dep | Not implemented; text diff via `diff` is used today |
 | #8 `engine serve` | `node:http` (stdlib) + tiny WebSocket lib | Stdlib `http.createServer` serves `build/` directory in ~10 lines. Livereload: inject `<script>` that polls or uses SSE. **No express needed.** |
 | #9 i18n | No | Extend `data-file.ts` with language suffix resolution |
 | #10 `markdown` type | `marked` (~50KB) + `sanitize-html` | Markdown→HTML via `marked.parse(md)`, then sanitize against extended whitelist. Both packages ship their own TypeScript types. |
@@ -542,12 +559,12 @@ Language:        TypeScript (strict)
 Runtime:         Node.js ≥ 22
 Runner:          tsx (dev), tsc (build)
 Test:            vitest
-Total deps:      5 production, 5 dev = 10 total
+Total deps:      3 production, 5 dev = 8 total
 Source files:    17 .ts files total (including types.ts)
 Test files:      7 .test.ts files
 Templates:       3 scaffold files
 CLI routing:     Map<string, handler> — no framework
-HTML parsing:    node-html-parser (standard DOM API)
+HTML validation: regex string checks (no DOM parser)
 CSS scoping:     Custom string manipulation (~30 lines)
 Templating:      Custom recursive descent (~100 lines)
 Error handling:  throw EngineError, catch at CLI boundary
@@ -555,4 +572,4 @@ Caching:         .engine-cache.json with SHA-256 hashes
 Build order:     17 steps, each testable independently
 ```
 
-**Start here**: `npm init`, install the 5 production deps, create `src/types.ts`, then follow §6 step by step. Each step has a corresponding test file. Green tests = move to next step.
+**Start here**: `npm init`, install the 3 production deps, create `src/types.ts`, then follow §6 step by step. Each step has a corresponding test file. Green tests = move to next step.

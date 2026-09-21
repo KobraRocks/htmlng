@@ -1,4 +1,3 @@
-import { parse as parseHTML } from 'node-html-parser';
 import type { Component } from './types.js';
 import { EngineError } from './types.js';
 import { validateText } from './text-validator.js';
@@ -111,17 +110,15 @@ export function validatePageData(
 ): EngineError[] {
   const warnings: EngineError[] = [];
 
-  // Schema validation
+  // Schema validation — report every problem at once so one pass is enough to fix
   const result = validateSchema(comp.schema, data);
   if (!result.valid) {
-    for (const err of result.errors) {
-      throw new EngineError(
-        `Schema validation failed: ${err}`,
-        dataFilePath,
-        undefined,
-        'ERROR',
-      );
-    }
+    throw new EngineError(
+      `Schema validation failed: ${result.errors.join('; ')}`,
+      dataFilePath,
+      undefined,
+      'ERROR',
+    );
   }
 
   // Check for unused keys (warnings)
