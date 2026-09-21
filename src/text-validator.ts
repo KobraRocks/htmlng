@@ -37,13 +37,14 @@ export function validateText(value: string, file: string, field: string): void {
       if (BLOCK_TAGS.has(tagName)) {
         throw new EngineError(
           `Block-level tag <${tagName}> not allowed in text field. Use {{html:${field}}} for block-level content.`,
-          file, field, 'ERROR',
+          file, field, 'ERROR', undefined, 'TEXT_BLOCK_TAG',
         );
       }
       throw new EngineError(
         `Disallowed tag <${tagName}> in text field.`,
         file, field, 'ERROR',
         `Allowed inline tags: ${Object.keys(ALLOWED_TAGS).map(t => `<${t}>`).join(', ')}`,
+        'TEXT_TAG_DISALLOWED',
       );
     }
 
@@ -51,7 +52,7 @@ export function validateText(value: string, file: string, field: string): void {
     if (allowedAttrs.length === 0 && attrsStr.trim()) {
       throw new EngineError(
         `Tag <${tagName}> does not allow any attributes in text field.`,
-        file, field, 'ERROR',
+        file, field, 'ERROR', undefined, 'TEXT_ATTR_DISALLOWED',
       );
     }
 
@@ -66,6 +67,7 @@ export function validateText(value: string, file: string, field: string): void {
           allowedAttrs.length > 0
             ? `Allowed attributes on <${tagName}>: ${allowedAttrs.join(', ')}.`
             : `Tag <${tagName}> does not allow any attributes.`,
+          'TEXT_ATTR_DISALLOWED',
         );
       }
     }

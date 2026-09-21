@@ -11,24 +11,24 @@ export function parsePage(filePath: string): Page {
   try {
     content = readFileSync(filePath, 'utf-8');
   } catch {
-    throw new EngineError(`Page file not found: ${filePath}`, filePath);
+    throw new EngineError(`Page file not found: ${filePath}`, filePath, undefined, 'ERROR', undefined, 'PAGE_NOT_FOUND');
   }
 
   let raw: Record<string, unknown>;
   try {
     raw = (load(content) as Record<string, unknown>) ?? {};
   } catch (e) {
-    throw new EngineError(`Failed to parse page YAML: ${(e as Error).message}`, filePath);
+    throw new EngineError(`Failed to parse page YAML: ${(e as Error).message}`, filePath, undefined, 'ERROR', undefined, 'PAGE_PARSE');
   }
 
   if (typeof raw.title !== 'string') {
-    throw new EngineError(`Page must have a "title" field (string)`, filePath, 'title');
+    throw new EngineError(`Page must have a "title" field (string)`, filePath, 'title', 'ERROR', undefined, 'PAGE_TITLE_INVALID');
   }
   if (typeof raw.description !== 'string') {
-    throw new EngineError(`Page must have a "description" field (string)`, filePath, 'description');
+    throw new EngineError(`Page must have a "description" field (string)`, filePath, 'description', 'ERROR', undefined, 'PAGE_DESCRIPTION_INVALID');
   }
   if (!Array.isArray(raw.components)) {
-    throw new EngineError(`Page must have a "components" field (array)`, filePath, 'components');
+    throw new EngineError(`Page must have a "components" field (array)`, filePath, 'components', 'ERROR', undefined, 'PAGE_COMPONENTS_INVALID');
   }
 
   return {

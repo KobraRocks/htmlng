@@ -33,7 +33,7 @@ export function parseComponent(filePath: string): Component {
   try {
     content = readFileSync(filePath, 'utf-8');
   } catch {
-    throw new EngineError(`Component file not found: ${filePath}`, filePath);
+    throw new EngineError(`Component file not found: ${filePath}`, filePath, undefined, 'ERROR', undefined, 'COMPONENT_NOT_FOUND');
   }
 
   const sections = splitSections(content);
@@ -41,12 +41,20 @@ export function parseComponent(filePath: string): Component {
     throw new EngineError(
       `Component file must have at least template and schema sections separated by "---"`,
       filePath,
+      undefined,
+      'ERROR',
+      undefined,
+      'COMPONENT_SECTIONS_MISSING',
     );
   }
   if (sections.length > 3) {
     throw new EngineError(
       `Component file has ${sections.length} sections; expected template, optional CSS, and schema (separated by "---" lines)`,
       filePath,
+      undefined,
+      'ERROR',
+      undefined,
+      'COMPONENT_SECTIONS_EXCESS',
     );
   }
 
@@ -61,6 +69,10 @@ export function parseComponent(filePath: string): Component {
     throw new EngineError(
       `Invalid JSON in component schema section`,
       filePath,
+      undefined,
+      'ERROR',
+      undefined,
+      'COMPONENT_SCHEMA_JSON',
     );
   }
 
@@ -72,6 +84,9 @@ export function parseComponent(filePath: string): Component {
         `Invalid placeholder type "${def.type}" for "${name}". Must be one of: ${[...validTypes].join(', ')}`,
         filePath,
         name,
+        'ERROR',
+        undefined,
+        'COMPONENT_PLACEHOLDER_TYPE',
       );
     }
   }

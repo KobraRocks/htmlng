@@ -14,15 +14,11 @@ const DEFAULTS: EngineConfig = {
     build: 'build',
   },
   build: {
-    minify: false,
-    pretty: true,
-    assetFingerprinting: false,
     inlineCSS: false,
   },
   validation: {
     strict: false,
     requireAltText: true,
-    maxHeadingLength: 120,
   },
 };
 
@@ -37,6 +33,10 @@ export function loadConfig(rootDir: string): EngineConfig {
     throw new EngineError(
       `Failed to load or parse engine.config.yaml`,
       configPath,
+      undefined,
+      'ERROR',
+      undefined,
+      'CONFIG_LOAD',
     );
   }
 
@@ -47,6 +47,9 @@ export function loadConfig(rootDir: string): EngineConfig {
         `Invalid path value for paths.${key}: "${value}". Path traversal not allowed.`,
         configPath,
         `paths.${key}`,
+        'ERROR',
+        undefined,
+        'CONFIG_PATH_TRAVERSAL',
       );
     }
   }
@@ -70,9 +73,6 @@ export function loadConfig(rootDir: string): EngineConfig {
 
   if (raw.build && typeof raw.build === 'object') {
     const b = raw.build as Record<string, unknown>;
-    if (typeof b.minify === 'boolean') config.build.minify = b.minify;
-    if (typeof b.pretty === 'boolean') config.build.pretty = b.pretty;
-    if (typeof b.assetFingerprinting === 'boolean') config.build.assetFingerprinting = b.assetFingerprinting;
     if (typeof b.inlineCSS === 'boolean') config.build.inlineCSS = b.inlineCSS;
   }
 
@@ -80,7 +80,6 @@ export function loadConfig(rootDir: string): EngineConfig {
     const v = raw.validation as Record<string, unknown>;
     if (typeof v.strict === 'boolean') config.validation.strict = v.strict;
     if (typeof v.requireAltText === 'boolean') config.validation.requireAltText = v.requireAltText;
-    if (typeof v.maxHeadingLength === 'number') config.validation.maxHeadingLength = v.maxHeadingLength;
   }
 
   return config;

@@ -103,7 +103,7 @@ export function updateCache(rootDir: string, pageName: string, _html: string): v
 
 function getSourceFiles(rootDir: string, pageName: string, page: { components: string[] }): string[] {
   const config = loadConfig(rootDir);
-  const files: string[] = ['global.css'];
+  const files: string[] = ['global.css', 'design-tokens.yaml', 'engine.config.yaml'];
   files.push(join(config.paths.pages, `${pageName}.page.yaml`));
 
   for (const compName of page.components) {

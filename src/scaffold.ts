@@ -115,15 +115,11 @@ paths:
   build: "build"
 
 build:
-  minify: false
-  pretty: true
-  assetFingerprinting: false
   inlineCSS: false
 
 validation:
   strict: false
   requireAltText: true
-  maxHeadingLength: 120
 `;
 
 export function initProject(rootDir: string, name?: string): void {
@@ -176,31 +172,49 @@ export function scaffoldData(
   const dir = join(rootDir, config.paths.data, pageName);
   mkdirSync(dir, { recursive: true });
 
-  // Generate YAML with all schema keys set to null
+  // Generate YAML with every schema key represented by a valid empty value
   const lines: string[] = [];
   for (const [key, def] of Object.entries(comp.schema)) {
-    if (def.type === 'image' || def.type === 'link' || def.type === 'slot') {
-      lines.push(`${key}:`);
-      lines.push(`  src: null`);
-      if (def.type === 'image') lines.push(`  alt: null`);
-      if (def.type === 'link') { lines.push(`  label: ""`); lines.push(`  # class: ""`); }
-    } else if (def.type === 'list') {
-      // Extract sub-fields used in the list block for hints
-      const blockRe = new RegExp(`\\{\\{\\s*#list:${key}\\s*\\}\\}([\\s\\S]*?)\\{\\{\\s*/list:${key}\\s*\\}\\}`, 'g');
-      const blockMatch = blockRe.exec(comp.template);
-      if (blockMatch) {
-        const innerFields = [...blockMatch[1].matchAll(/\{\{text:(\w+)\}\}/g)].map(m => m[1]);
-        if (innerFields.length > 0) {
-          lines.push(`# Expected fields per item: ${innerFields.join(', ')}`);
+    switch (def.type) {
+      case 'image':
+        lines.push(`${key}:`);
+        lines.push(`  src: ""`);
+        lines.push(`  alt: ""`);
+        lines.push(`  # width: 0`);
+        lines.push(`  # height: 0`);
+        lines.push(`  # loading: lazy`);
+        break;
+      case 'link':
+        lines.push(`${key}:`);
+        lines.push(`  href: ""`);
+        lines.push(`  label: ""`);
+        lines.push(`  # class: ""`);
+        break;
+      case 'slot':
+        lines.push(`${key}:`);
+        lines.push(`  component: ""   # name of another component to embed`);
+        lines.push(`  # data: {}`);
+        break;
+      case 'list': {
+        const item = extractListItemFields(comp.template, key);
+        if (item.scalar) {
+          lines.push(`${key}:`);
+          lines.push(`  - ""`);
+        } else if (item.fields.length > 0) {
+          lines.push(`# Expected fields per item: ${item.fields.join(', ')}`);
+          lines.push(`${key}:`);
+          lines.push(`  - ${item.fields[0]}: ""`);
+          for (const f of item.fields.slice(1)) lines.push(`    ${f}: ""`);
+        } else {
+          lines.push(`${key}: []`);
         }
+        break;
       }
-      lines.push(`${key}:`);
-      lines.push(`  - title: ""`);
-      lines.push(`    description: ""`);
-    } else if (def.type === 'bool') {
-      lines.push(`${key}: false`);
-    } else {
-      lines.push(`${key}: ""`);
+      case 'bool':
+        lines.push(`${key}: false`);
+        break;
+      default:
+        lines.push(`${key}: ""`);
     }
   }
 
@@ -208,6 +222,21 @@ export function scaffoldData(
     join(dir, `${componentName}.yaml`),
     lines.join('\n') + '\n',
   );
+}
+
+/** Derive the placeholder fields a `{{#list:name}}` block expects from the template. */
+function extractListItemFields(template: string, listName: string): { fields: string[]; scalar: boolean } {
+  const blockRe = new RegExp(
+    `\\{\\{\\s*#list:${listName}\\s*\\}\\}([\\s\\S]*?)\\{\\{\\s*/list:${listName}\\s*\\}\\}`,
+  );
+  const match = blockRe.exec(template);
+  if (!match) return { fields: [], scalar: false };
+
+  const inner = match[1];
+  const fields = [...new Set(
+    [...inner.matchAll(/\{\{\s*text:(\w+)\s*\}\}/g)].map((m) => m[1]).filter((n) => n !== 'this'),
+  )];
+  return { fields, scalar: /\{\{\s*text:this\s*\}\}/.test(inner) };
 }
 
 export function scaffoldPresetComponent(rootDir: string, name: string, presetName: string): void {
@@ -218,7 +247,7 @@ export function scaffoldPresetComponent(rootDir: string, name: string, presetNam
   try {
     content = readFileSync(presetPath, 'utf-8');
   } catch {
-    throw new EngineError(`Preset not found: ${presetName}`, presetPath);
+    throw new EngineError(`Preset not found: ${presetName}`, presetPath, undefined, 'ERROR', undefined, 'PRESET_NOT_FOUND');
   }
 
   const destPath = join(rootDir, config.paths.components, `${name}.component.html`);

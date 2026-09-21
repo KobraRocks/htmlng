@@ -72,12 +72,12 @@ function walk(
         if (tj.kind === 'close' && (tj as { type: string }).type === blockType) nest--;
         j++;
       }
-      if (nest !== 0) throw new EngineError(`Unclosed block {{#${blockType}:${blockName}}}`, '', blockName);
+      if (nest !== 0) throw new EngineError(`Unclosed block {{#${blockType}:${blockName}}}`, '', blockName, 'ERROR', undefined, 'TEMPLATE_UNCLOSED_BLOCK');
 
       const inner = tokens.slice(i + 1, j - 1);
       if (blockType === 'list') output += resolveList(inner, blockName, data, components, depth, visited);
       else if (blockType === 'bool') output += resolveBool(inner, blockName, data, components, depth, visited);
-      else throw new EngineError(`Unknown block type: {{#${blockType}:${blockName}}}`, '', blockName);
+      else throw new EngineError(`Unknown block type: {{#${blockType}:${blockName}}}`, '', blockName, 'ERROR', undefined, 'TEMPLATE_UNKNOWN_BLOCK');
 
       i = j;
     } else {
@@ -124,7 +124,7 @@ function resolveInline(
       return resolveSlot(v, components, depth, visited);
     }
     default:
-      throw new EngineError(`Unknown placeholder type: {{${type}:${name}}}`, '', name);
+      throw new EngineError(`Unknown placeholder type: {{${type}:${name}}}`, '', name, 'ERROR', undefined, 'TEMPLATE_UNKNOWN_PLACEHOLDER');
   }
 }
 
@@ -166,10 +166,10 @@ function resolveSlot(
   depth: number,
   visited: Set<string>,
 ): string {
-  if (depth >= 3) throw new EngineError(`Slot nesting depth exceeds maximum (3)`, '');
-  if (visited.has(slotValue.component)) throw new EngineError(`Circular slot reference: ${slotValue.component}`, '');
+  if (depth >= 3) throw new EngineError(`Slot nesting depth exceeds maximum (3)`, '', undefined, 'ERROR', undefined, 'SLOT_DEPTH_EXCEEDED');
+  if (visited.has(slotValue.component)) throw new EngineError(`Circular slot reference: ${slotValue.component}`, '', undefined, 'ERROR', undefined, 'SLOT_CIRCULAR');
   const comp = components.get(slotValue.component);
-  if (!comp) throw new EngineError(`Slot references unknown component: ${slotValue.component}`, '');
+  if (!comp) throw new EngineError(`Slot references unknown component: ${slotValue.component}`, '', undefined, 'ERROR', undefined, 'SLOT_UNKNOWN_COMPONENT');
   const newVisited = new Set(visited);
   newVisited.add(slotValue.component);
   return renderTemplate(comp.template, slotValue.data ?? {}, components, depth + 1, newVisited);

@@ -33,6 +33,10 @@ export function loadData(
           throw new EngineError(
             `Array element [${i}] must be an object with placeholder keys, got ${Array.isArray(item) ? 'array' : typeof item}`,
             filePath,
+            undefined,
+            'ERROR',
+            undefined,
+            'DATA_ARRAY_ITEM_INVALID',
           );
         }
       }
@@ -43,6 +47,10 @@ export function loadData(
       throw new EngineError(
         `Data file must contain a YAML object or array, got ${typeof parsed}`,
         filePath,
+        undefined,
+        'ERROR',
+        undefined,
+        'DATA_ROOT_INVALID',
       );
     }
     return parsed as Record<string, PlaceholderValue>;
@@ -53,6 +61,10 @@ export function loadData(
     throw new EngineError(
       `Failed to parse data file: ${(e as Error).message}`,
       filePath,
+      undefined,
+      'ERROR',
+      undefined,
+      'DATA_PARSE',
     );
   }
 }

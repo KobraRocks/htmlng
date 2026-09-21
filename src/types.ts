@@ -3,8 +3,8 @@
 export interface EngineConfig {
   project: { name: string; lang: string };
   paths: { components: string; pages: string; data: string; assets: string; build: string };
-  build: { minify: boolean; pretty: boolean; assetFingerprinting: boolean; inlineCSS: boolean };
-  validation: { strict: boolean; requireAltText: boolean; maxHeadingLength: number };
+  build: { inlineCSS: boolean };
+  validation: { strict: boolean; requireAltText: boolean };
 }
 
 export interface PlaceholderSchema {
@@ -81,13 +81,26 @@ export interface CacheManifest {
 
 // ── Error handling ──────────────────────────────────────
 
+export type ErrorLevel = 'ERROR' | 'WARNING';
+
+/** Stable machine-readable shape used by `--json` output. */
+export interface ErrorJson {
+  code: string;
+  level: ErrorLevel;
+  file: string;
+  field?: string;
+  message: string;
+  help?: string;
+}
+
 export class EngineError extends Error {
   constructor(
     message: string,
-    public file: string,
+    public file = '',
     public field?: string,
-    public level: 'ERROR' | 'WARNING' = 'ERROR',
+    public level: ErrorLevel = 'ERROR',
     public help?: string,
+    public code = 'E_UNKNOWN',
   ) {
     super(message);
     this.name = 'EngineError';
@@ -98,5 +111,16 @@ export class EngineError extends Error {
     let out = `${this.level} [${loc}]: ${this.message}`;
     if (this.help) out += `\n  ${this.help}`;
     return out;
+  }
+
+  toJSON(): ErrorJson {
+    return {
+      code: this.code,
+      level: this.level,
+      file: this.file,
+      field: this.field,
+      message: this.message,
+      help: this.help,
+    };
   }
 }

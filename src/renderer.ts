@@ -1,11 +1,11 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
-import type { Component, Page, PlaceholderValue, ImageValue } from './types.js';
+import type { Component, PlaceholderValue, ImageValue } from './types.js';
 import { EngineError } from './types.js';
 import { escapeHtml, escapeAttr } from './escape.js';
 import { loadConfig } from './config.js';
-import { parseComponent } from './component.js';
+import { parseComponent, findComponents } from './component.js';
 import { renderTemplate } from './template.js';
 import { assemblePageCSS } from './css.js';
 import { loadData } from './data-file.js';
@@ -13,29 +13,57 @@ import { parsePage } from './page.js';
 import { validateComponent, validatePageData, validatePageStructure } from './validator.js';
 
 /**
- * Render a full HTML page document.
+ * Load every component in the components directory for `{{slot:...}}` resolution.
+ * A malformed component that is not used by the page must not block rendering —
+ * `htmlng validate` reports those separately.
  */
-export function renderPage(rootDir: string, pageName: string, inlineCSS = false): string {
+function loadAllComponents(compDir: string): Map<string, Component> {
+  const map = new Map<string, Component>();
+  for (const name of findComponents(compDir)) {
+    try {
+      map.set(name, parseComponent(join(compDir, `${name}.component.html`)));
+    } catch {
+      // Ignored here; surfaced by `htmlng validate`.
+    }
+  }
+  return map;
+}
+
+/**
+ * Render a full HTML page document.
+ *
+ * When a `warnings` array is supplied, non-blocking validation warnings are
+ * appended to it so the caller can display them (and `--strict` can fail).
+ */
+export function renderPage(
+  rootDir: string,
+  pageName: string,
+  inlineCSS = false,
+  warnings: EngineError[] = [],
+): string {
   const config = loadConfig(rootDir);
   const pagePath = join(rootDir, config.paths.pages, `${pageName}.page.yaml`);
   const page = parsePage(pagePath);
 
   if (page.components.length === 0) {
-    throw new EngineError(`Page "${pageName}" has no components`, pagePath, 'components');
+    throw new EngineError(`Page "${pageName}" has no components`, pagePath, 'components', 'ERROR', undefined, 'PAGE_NO_COMPONENTS');
   }
 
-  // Parse all components and build the lookup map
-  const allComponents = new Map<string, Component>();
+  const compDir = join(rootDir, config.paths.components);
+
+  // Full map so {{slot:...}} can reference any component, not only page members
+  const allComponents = loadAllComponents(compDir);
+
+  // Page components are parsed strictly so a missing file reports a clear error
+  const pageComponents: Component[] = [];
   for (const name of page.components) {
-    const compPath = join(rootDir, config.paths.components, `${name}.component.html`);
-    const comp = parseComponent(compPath);
-
-    // Validate component
-    const compWarnings = validateComponent(comp);
-    // warnings are collected but don't block
-
+    const comp = parseComponent(join(compDir, `${name}.component.html`));
+    warnings.push(...validateComponent(comp));
     allComponents.set(name, comp);
+    pageComponents.push(comp);
   }
+
+  const requireAltText = config.validation.requireAltText;
 
   // Render each component (data may be a single object or an array of objects)
   const renderedComponents: Array<{ name: string; html: string; index?: number }> = [];
@@ -48,13 +76,13 @@ export function renderPage(rootDir: string, pageName: string, inlineCSS = false)
       // Array data — render one section per array element
       for (let i = 0; i < data.length; i++) {
         const item = data[i] as Record<string, PlaceholderValue>;
-        validatePageData(comp, item, dataPath);
+        warnings.push(...validatePageData(comp, item, dataPath, { requireAltText }));
         const innerHTML = renderTemplate(comp.template, item, allComponents);
         renderedComponents.push({ name, html: innerHTML, index: data.length > 1 ? i : undefined });
       }
     } else {
       // Single object data — current behavior
-      validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath);
+      warnings.push(...validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath, { requireAltText }));
       const innerHTML = renderTemplate(comp.template, data as Record<string, PlaceholderValue>, allComponents);
       renderedComponents.push({ name, html: innerHTML });
     }
@@ -65,9 +93,8 @@ export function renderPage(rootDir: string, pageName: string, inlineCSS = false)
   const tokens = loadDesignTokens(rootDir);
   globalCSS = resolveTokens(globalCSS, tokens);
 
-  // Assemble CSS
-  const compsArray = Array.from(allComponents.values());
-  const pageCSS = assemblePageCSS(compsArray, globalCSS);
+  // Assemble CSS from the page's components only (not every component on disk)
+  const pageCSS = assemblePageCSS(pageComponents, globalCSS);
 
   // Build HTML
   const lang = page.lang ?? config.project.lang;
@@ -154,24 +181,35 @@ export function renderPage(rootDir: string, pageName: string, inlineCSS = false)
 /**
  * Render a single component's inner HTML with data from a specific page.
  * No wrapping element. Returns only the resolved template.
+ *
+ * The full component map is loaded so `{{slot:...}}` resolves to sibling
+ * components, keeping the per-component feedback loop usable (spec C17).
  */
-export function renderComponent(rootDir: string, componentName: string, pageName: string): string {
+export function renderComponent(
+  rootDir: string,
+  componentName: string,
+  pageName: string,
+  warnings: EngineError[] = [],
+): string {
   const config = loadConfig(rootDir);
-  const compPath = join(rootDir, config.paths.components, `${componentName}.component.html`);
-  const comp = parseComponent(compPath);
-  const data = loadData(rootDir, pageName, componentName);
-  const allComponents = new Map<string, Component>();
+  const compDir = join(rootDir, config.paths.components);
+  const comp = parseComponent(join(compDir, `${componentName}.component.html`));
+
+  const allComponents = loadAllComponents(compDir);
   allComponents.set(componentName, comp);
 
-  validateComponent(comp);
+  warnings.push(...validateComponent(comp));
+
+  const data = loadData(rootDir, pageName, componentName);
   const dataPath = join(rootDir, config.paths.data, pageName, `${componentName}.yaml`);
+  const requireAltText = config.validation.requireAltText;
 
   if (Array.isArray(data)) {
     // Render each array element separated by dividers
     const parts: string[] = [];
     for (let i = 0; i < data.length; i++) {
       const item = data[i] as Record<string, PlaceholderValue>;
-      validatePageData(comp, item, dataPath);
+      warnings.push(...validatePageData(comp, item, dataPath, { requireAltText }));
       const innerHTML = renderTemplate(comp.template, item, allComponents);
       if (data.length > 1) {
         parts.push(`=== ITEM ${i} ===\n${innerHTML}`);
@@ -182,7 +220,7 @@ export function renderComponent(rootDir: string, componentName: string, pageName
     return parts.join('\n');
   }
 
-  validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath);
+  warnings.push(...validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath, { requireAltText }));
   return renderTemplate(comp.template, data as Record<string, PlaceholderValue>, allComponents);
 }
 
@@ -221,7 +259,7 @@ export function previewComponent(rootDir: string, componentName: string): string
     }
   }
 
-  const allComponents = new Map<string, Component>();
+  const allComponents = loadAllComponents(join(rootDir, config.paths.components));
   allComponents.set(componentName, comp);
 
   return renderTemplate(comp.template, sampleData, allComponents);

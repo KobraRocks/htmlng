@@ -10,24 +10,26 @@ import { validateData as validateSchema } from './schema.js';
 export function validateComponent(comp: Component): EngineError[] {
   const warnings: EngineError[] = [];
 
+  const file = `components/${comp.name}.component.html`;
+
   // Check for forbidden tags in template
   const lower = comp.template.toLowerCase();
   if (/<script[\s>]/i.test(lower)) {
     throw new EngineError(
       `Component template contains <script> tag (forbidden)`,
-      `components/${comp.name}.component.html`,
+      file, undefined, 'ERROR', undefined, 'COMPONENT_SCRIPT_FORBIDDEN',
     );
   }
   if (/<style[\s>]/i.test(lower)) {
     throw new EngineError(
       `Component template contains <style> tag (forbidden)`,
-      `components/${comp.name}.component.html`,
+      file, undefined, 'ERROR', undefined, 'COMPONENT_STYLE_FORBIDDEN',
     );
   }
   if (/\sstyle\s*=\s*["']/i.test(comp.template)) {
     throw new EngineError(
       `Component template contains inline style attribute (forbidden)`,
-      `components/${comp.name}.component.html`,
+      file, undefined, 'ERROR', undefined, 'COMPONENT_INLINE_STYLE',
     );
   }
 
@@ -40,8 +42,7 @@ export function validateComponent(comp: Component): EngineError[] {
       throw new EngineError(
         `Template uses placeholder "${field}" but schema has no matching entry. ` +
         `Add "${field}" to the schema section, or update the template.`,
-        `components/${comp.name}.component.html`,
-        field,
+        file, field, 'ERROR', undefined, 'TEMPLATE_PLACEHOLDER_UNKNOWN',
       );
     }
   }
@@ -51,9 +52,7 @@ export function validateComponent(comp: Component): EngineError[] {
       warnings.push(new EngineError(
         `Schema defines "${field}" but template does not use it. ` +
         `Remove from schema or add {{...${field}}} to the template.`,
-        `components/${comp.name}.component.html`,
-        field,
-        'WARNING',
+        file, field, 'WARNING', undefined, 'SCHEMA_FIELD_UNUSED',
       ));
     }
   }
@@ -98,15 +97,21 @@ function extractPlaceholders(template: string): Set<string> {
   return fields;
 }
 
+export interface PageDataValidationOptions {
+  /** Enforce that every image value provides an `alt` string (spec §7.3). */
+  requireAltText?: boolean;
+}
+
 /**
  * Validate data for a component on a specific page.
- * Checks schema validity and text field whitelist.
+ * Checks schema validity, alt text, and the text field whitelist.
  * Returns warnings. Throws EngineError on blocking errors.
  */
 export function validatePageData(
   comp: Component,
   data: Record<string, unknown>,
   dataFilePath: string,
+  options: PageDataValidationOptions = {},
 ): EngineError[] {
   const warnings: EngineError[] = [];
 
@@ -118,6 +123,8 @@ export function validatePageData(
       dataFilePath,
       undefined,
       'ERROR',
+      undefined,
+      'SCHEMA_VALIDATION',
     );
   }
 
@@ -129,7 +136,31 @@ export function validatePageData(
         dataFilePath,
         key,
         'WARNING',
+        undefined,
+        'DATA_KEY_UNUSED',
       ));
+    }
+  }
+
+  // Alt text enforcement (spec §7.3). An empty alt is allowed (decorative),
+  // but the key must be present when validation.requireAltText is on.
+  if (options.requireAltText) {
+    for (const [name, def] of Object.entries(comp.schema)) {
+      if (def.type !== 'image') continue;
+      const value = data[name];
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const alt = (value as Record<string, unknown>).alt;
+        if (typeof alt !== 'string') {
+          throw new EngineError(
+            `Image "${name}" is missing alt text`,
+            dataFilePath,
+            name,
+            'ERROR',
+            'Add "alt:" to the image data, or set validation.requireAltText: false in engine.config.yaml.',
+            'ALT_TEXT_REQUIRED',
+          );
+        }
+      }
     }
   }
 
@@ -153,13 +184,13 @@ export function validatePageStructure(html: string): void {
   // (node-html-parser v8.0.4 has a parsing bug with complex nested sections.)
 
   if (!/<body[\s>]/i.test(html)) {
-    throw new EngineError('Page must have a <body> element', '');
+    throw new EngineError('Page must have a <body> element', '', undefined, 'ERROR', undefined, 'PAGE_NO_BODY');
   }
 
   // Extract body content
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
   if (!bodyMatch) {
-    throw new EngineError('Page must have a closing </body> tag', '');
+    throw new EngineError('Page must have a closing </body> tag', '', undefined, 'ERROR', undefined, 'PAGE_BODY_UNCLOSED');
   }
 
   const bodyContent = bodyMatch[1];
@@ -193,6 +224,10 @@ export function validatePageStructure(html: string): void {
       throw new EngineError(
         `Disallowed direct child of <body>: <${tag}>. Only <header>, <section id="...">, and <footer> are allowed.`,
         '',
+        undefined,
+        'ERROR',
+        undefined,
+        'PAGE_BODY_CHILD',
       );
     }
   }
@@ -203,7 +238,7 @@ export function validatePageStructure(html: string): void {
   while ((match = idRe.exec(html)) !== null) {
     const id = match[1];
     if (ids.has(id)) {
-      throw new EngineError(`Duplicate id "${id}" in page`, '');
+      throw new EngineError(`Duplicate id "${id}" in page`, '', undefined, 'ERROR', undefined, 'PAGE_DUPLICATE_ID');
     }
     ids.add(id);
   }
