@@ -116,6 +116,11 @@ The agent-painful defects in the companion review are **interface-level**, and n
 
 **MCP is the one genuinely better agent interface** — a persistent server exposing `render`, `validate`, `context`, `build` as typed tools would eliminate per-call startup, give structured results for free, and remove the shell-string-parsing failure mode entirely. But it is an **addition**, not a replacement: the CLI must remain for humans, CI, and simple harnesses. Recommend scheduling it after Phases A–C, not before.
 
+> **Decided 2026-07-08 (see `adr-agent-interface.md`)**: after Phases A–D made the CLI
+> agent-native, the measured case for a persistent server did not hold (startup ~35–55 ms;
+> ~5 ms growth from 25 → 300 components). **MCP is deferred**, not adopted — the CLI is the
+> interface of record, and a shell-less harness is the trigger that would change this.
+
 ---
 
 ## 4. Recommendation (revised sequencing)
@@ -126,6 +131,8 @@ Keep TS/Node and the flat architecture. Change only the order of work:
 2. **Parse-once CLI refactor** — typed `{command, subcommand, positionals, flags}`, reject unknowns, return results, `process.exit` only at the boundary. *This makes `cli.test.ts` possible and eliminates the P1-1/P1-6 class.*
 3. **Then** run the companion roadmap: Phase A (trust signals: `validate` exit code, shared `buildPages()`, build wipe, robust component parsing), Phase B (`--json`, `context`, `explain`, `schema`), Phase C (`AGENTS.md`, examples, doc conformance).
 4. **Later, optional** — `serve --api` / MCP front-end reusing the same core modules.
+   **Deferred per `adr-agent-interface.md`**; the same ADR also declines batch/stdin
+   rendering and defers multi-target `build page a b c`.
 
 ### What would change this verdict
 

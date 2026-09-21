@@ -41,7 +41,7 @@ src/
 test/             unit + CLI tests; test/fixtures is a minimal project
 examples/landing/ a runnable reference project (kept warning-free)
 specs/            functional spec + stack notes
-issues/           design notes, reviews, journey logs
+issues/           design notes, reviews, journey logs, ADRs
 ```
 
 ## Dev loop
