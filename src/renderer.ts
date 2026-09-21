@@ -76,13 +76,13 @@ export function renderPage(
       // Array data — render one section per array element
       for (let i = 0; i < data.length; i++) {
         const item = data[i] as Record<string, PlaceholderValue>;
-        warnings.push(...validatePageData(comp, item, dataPath, { requireAltText }));
+        warnings.push(...validatePageData(comp, item, dataPath, { requireAltText, components: allComponents }));
         const innerHTML = renderTemplate(comp.template, item, allComponents);
         renderedComponents.push({ name, html: innerHTML, index: i });
       }
     } else {
       // Single object data — current behavior
-      warnings.push(...validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath, { requireAltText }));
+      warnings.push(...validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath, { requireAltText, components: allComponents }));
       const innerHTML = renderTemplate(comp.template, data as Record<string, PlaceholderValue>, allComponents);
       renderedComponents.push({ name, html: innerHTML });
     }
@@ -209,7 +209,7 @@ export function renderComponent(
     const parts: string[] = [];
     for (let i = 0; i < data.length; i++) {
       const item = data[i] as Record<string, PlaceholderValue>;
-      warnings.push(...validatePageData(comp, item, dataPath, { requireAltText }));
+      warnings.push(...validatePageData(comp, item, dataPath, { requireAltText, components: allComponents }));
       const innerHTML = renderTemplate(comp.template, item, allComponents);
       if (data.length > 1) {
         parts.push(`=== ITEM ${i} ===\n${innerHTML}`);
@@ -220,7 +220,7 @@ export function renderComponent(
     return parts.join('\n');
   }
 
-  warnings.push(...validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath, { requireAltText }));
+  warnings.push(...validatePageData(comp, data as Record<string, PlaceholderValue>, dataPath, { requireAltText, components: allComponents }));
   return renderTemplate(comp.template, data as Record<string, PlaceholderValue>, allComponents);
 }
 

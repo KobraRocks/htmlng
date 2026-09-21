@@ -24,6 +24,7 @@ import { parsePage, findPages } from './page.js';
 import { loadData } from './data-file.js';
 import { FORMAT_SPEC } from './format-spec.js';
 import { ERROR_CATALOG, explainError, allErrorCodes } from './error-catalog.js';
+import { escapeAttr } from './escape.js';
 
 let ROOT = process.cwd();
 let verbose = false;
@@ -1011,8 +1012,7 @@ function wrapWithCSS(rootDir: string, componentName: string, innerHTML: string):
   globalCSS = resolveTokens(globalCSS, loadDesignTokens(rootDir));
   const scopedCSS = assemblePageCSS([comp], globalCSS);
 
-  return `<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<style>\n${scopedCSS}\n</style>\n</head>\n<body>\n  <div class="${escAttr(componentName)}">\n${ind(innerHTML, 4)}\n  </div>\n</body>\n</html>`;
+  return `<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<style>\n${scopedCSS}\n</style>\n</head>\n<body>\n  <div class="${escapeAttr(componentName)}">\n${ind(innerHTML, 4)}\n  </div>\n</body>\n</html>`;
 }
 
 function ind(s: string, n: number): string { const p = ' '.repeat(n); return s.split('\n').map(l => p + l).join('\n'); }
-function escAttr(s: string): string { return s.replace(/"/g, '&quot;'); }

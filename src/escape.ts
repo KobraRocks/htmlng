@@ -1,7 +1,11 @@
 export function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
-export function escapeAttr(s: string): string {
-  return s.replace(/"/g, '&quot;');
-}
+/** Attribute values need the same escaping as text content. */
+export const escapeAttr = escapeHtml;

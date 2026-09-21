@@ -2,6 +2,7 @@ import type { Component } from './types.js';
 import { EngineError } from './types.js';
 import { validateText } from './text-validator.js';
 import { validateData as validateSchema } from './schema.js';
+import { unsafeUrlReason } from './url-safety.js';
 
 /**
  * Validate a component's structure and template content.
@@ -120,6 +121,12 @@ function extractPlaceholders(template: string): Set<string> {
 export interface PageDataValidationOptions {
   /** Enforce that every image value provides an `alt` string (spec §7.3). */
   requireAltText?: boolean;
+  /** Component map — enables recursive validation of `{{slot}}` sub-data. */
+  components?: Map<string, Component>;
+  /** @internal slot recursion depth */
+  slotDepth?: number;
+  /** @internal components visited along the slot chain */
+  slotVisited?: Set<string>;
 }
 
 /**
@@ -181,6 +188,83 @@ export function validatePageData(
           );
         }
       }
+    }
+  }
+
+  // URL scheme safety for link/image values
+  for (const [name, def] of Object.entries(comp.schema)) {
+    const value = data[name];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const record = value as Record<string, unknown>;
+
+    if (def.type === 'link' && typeof record.href === 'string') {
+      const reason = unsafeUrlReason(record.href);
+      if (reason) {
+        throw new EngineError(
+          `Unsafe link href in "${name}": ${reason}`,
+          dataFilePath, name, 'ERROR',
+          'Use an http(s), mailto, tel, fragment (#...), or relative URL.',
+          'UNSAFE_URL',
+        );
+      }
+    }
+
+    if (def.type === 'image' && typeof record.src === 'string') {
+      const reason = unsafeUrlReason(record.src, { allowDataImage: true });
+      if (reason) {
+        throw new EngineError(
+          `Unsafe image src in "${name}": ${reason}`,
+          dataFilePath, name, 'ERROR',
+          'Use a path/URL, or a raster data:image/<type> URL.',
+          'UNSAFE_URL',
+        );
+      }
+    }
+  }
+
+  // Recurse into {{slot}} sub-data so inline slots cannot bypass the schema,
+  // URL, alt-text, or text-whitelist checks
+  if (options.components) {
+    for (const [name, def] of Object.entries(comp.schema)) {
+      if (def.type !== 'slot') continue;
+      const value = data[name];
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      const record = value as Record<string, unknown>;
+      const componentName = record.component;
+      if (typeof componentName !== 'string') continue; // schema already requires it
+
+      const nested = options.components.get(componentName);
+      if (!nested) {
+        throw new EngineError(
+          `Slot references unknown component: ${componentName}`,
+          dataFilePath, name, 'ERROR', undefined, 'SLOT_UNKNOWN_COMPONENT',
+        );
+      }
+
+      const depth = (options.slotDepth ?? 0) + 1;
+      if (depth > 3) {
+        throw new EngineError('Slot nesting depth exceeds maximum (3)', dataFilePath, name, 'ERROR', undefined, 'SLOT_DEPTH_EXCEEDED');
+      }
+      const visited = new Set(options.slotVisited ?? []);
+      if (visited.has(componentName)) {
+        throw new EngineError(`Circular slot reference: ${componentName}`, dataFilePath, name, 'ERROR', undefined, 'SLOT_CIRCULAR');
+      }
+      visited.add(componentName);
+
+      const slotData = record.data;
+      if (slotData !== undefined && (typeof slotData !== 'object' || slotData === null || Array.isArray(slotData))) {
+        throw new EngineError(
+          `Slot data for "${name}" must be an object`,
+          dataFilePath, name, 'ERROR', undefined, 'SCHEMA_VALIDATION',
+        );
+      }
+
+      warnings.push(...validatePageData(
+        nested,
+        (slotData ?? {}) as Record<string, unknown>,
+        dataFilePath,
+        { ...options, slotDepth: depth, slotVisited: visited },
+      ));
     }
   }
 

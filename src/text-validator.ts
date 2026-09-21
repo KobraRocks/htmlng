@@ -1,4 +1,5 @@
 import { EngineError } from './types.js';
+import { unsafeUrlReason } from './url-safety.js';
 
 const ALLOWED_TAGS: Record<string, string[]> = {
   strong: [],
@@ -69,6 +70,23 @@ export function validateText(value: string, file: string, field: string): void {
             : `Tag <${tagName}> does not allow any attributes.`,
           'TEXT_ATTR_DISALLOWED',
         );
+      }
+    }
+
+    // Scheme check for <a href="..."> — the whitelist allows the tag, not any URL
+    if (tagName === 'a') {
+      const hrefMatch = attrsStr.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      if (hrefMatch) {
+        const href = hrefMatch[1] ?? hrefMatch[2] ?? hrefMatch[3] ?? '';
+        const reason = unsafeUrlReason(href);
+        if (reason) {
+          throw new EngineError(
+            `Unsafe href in text field: ${reason}`,
+            file, field, 'ERROR',
+            'Use an http(s), mailto, tel, fragment (#...), or relative URL.',
+            'UNSAFE_URL',
+          );
+        }
       }
     }
   }

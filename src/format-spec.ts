@@ -42,6 +42,12 @@ export const FORMAT_SPEC = {
     attributes: { a: ['href'] },
     note: 'Any other tag or attribute is rejected. Block-level tags must use {{html:field}}.',
   },
+  urlSafety: {
+    blockedSchemes: ['javascript:', 'vbscript:', 'file:', 'blob:'],
+    dataUrls: 'rejected, except raster data:image/<type> for image src (SVG is excluded)',
+    allowed: 'http(s), mailto, tel, fragment (#...), and relative paths',
+    appliesTo: 'link.href, image.src, and <a href> inside text fields',
+  },
   pageFile: {
     extension: '.page.yaml',
     location: 'pages/<name>.page.yaml',

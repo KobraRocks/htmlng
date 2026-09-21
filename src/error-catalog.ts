@@ -93,6 +93,10 @@ export const ERROR_CATALOG: Record<string, CatalogEntry> = {
     summary: 'A text field uses an attribute that is not allowed on that tag.',
     fix: 'Only <a href="..."> accepts an attribute; every other allowed tag is attribute-free.',
   },
+  UNSAFE_URL: {
+    summary: 'A URL uses a dangerous scheme (javascript:, vbscript:, file:, blob:, or a disallowed data: URL).',
+    fix: 'Use an http(s), mailto, tel, fragment (#...), or relative URL. Images may use raster data:image/<type> URLs (not SVG).',
+  },
 
   // ── Data ──────────────────────────────────────────────
   SCHEMA_VALIDATION: {
