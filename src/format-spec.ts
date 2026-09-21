@@ -63,7 +63,7 @@ export const FORMAT_SPEC = {
   dataFile: {
     location: 'data/<page>/<component>.yaml',
     shape: 'a YAML map (one instance) or a YAML sequence (repeat the component once per element)',
-    arrayIds: 'array elements get indexed ids: <component>-0, <component>-1, ...',
+    arrayIds: 'array elements always get indexed ids: <component>-0, <component>-1, ... (including a single-element array)',
   },
   configFile: {
     location: 'engine.config.yaml',

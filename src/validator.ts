@@ -57,7 +57,27 @@ export function validateComponent(comp: Component): EngineError[] {
     }
   }
 
+  // Warn about an outer div that duplicates the engine's own semantic wrapper
+  if (isRedundantWrapper(comp.template, comp.name)) {
+    warnings.push(new EngineError(
+      `Template wraps its content in <div class="${comp.name}">, duplicating the engine wrapper`,
+      file,
+      undefined,
+      'WARNING',
+      `The engine already emits the wrapper (id/class "${comp.name}"). Remove the outer <div> and keep the inner content.`,
+      'COMPONENT_REDUNDANT_WRAPPER',
+    ));
+  }
+
   return warnings;
+}
+
+/** True when the template is a single `<div class="<name>">…</div>` wrapper. */
+function isRedundantWrapper(template: string, name: string): boolean {
+  const trimmed = template.trim();
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const openRe = new RegExp(`^<div\\s+class=["']${escaped}["']\\s*>`, 'i');
+  return openRe.test(trimmed) && trimmed.toLowerCase().endsWith('</div>');
 }
 
 function extractPlaceholders(template: string): Set<string> {

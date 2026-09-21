@@ -45,6 +45,10 @@ export const ERROR_CATALOG: Record<string, CatalogEntry> = {
     summary: 'A component template contains an inline style="..." attribute.',
     fix: 'Move the styling into the component CSS section.',
   },
+  COMPONENT_REDUNDANT_WRAPPER: {
+    summary: 'A template wraps its whole content in <div class="<component-name>">.',
+    fix: 'Remove the outer div — the engine already emits the semantic wrapper with that class.',
+  },
 
   // ── Template / placeholders ───────────────────────────
   TEMPLATE_PLACEHOLDER_UNKNOWN: {

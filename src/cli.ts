@@ -47,11 +47,21 @@ const defaultIo: Io = {
 
 let io: Io = defaultIo;
 
+/** Version of the `--json` output contract, included in every `{ ok: ... }` payload. */
+export const JSON_SCHEMA_VERSION = 1;
+
 function log(...args: unknown[]) { if (verbose) io.err(`[debug] ${args.join(' ')}\n`); }
 
-/** Emit a machine-readable JSON value on stdout. */
+/**
+ * Emit a machine-readable JSON value on stdout. Payloads that carry an `ok`
+ * field (the command-result contract) are stamped with `schemaVersion`.
+ */
 function emit(value: unknown): void {
-  io.out(JSON.stringify(value, null, 2) + '\n');
+  const payload =
+    value !== null && typeof value === 'object' && 'ok' in (value as Record<string, unknown>)
+      ? { schemaVersion: JSON_SCHEMA_VERSION, ...(value as Record<string, unknown>) }
+      : value;
+  io.out(JSON.stringify(payload, null, 2) + '\n');
 }
 
 function emitError(e: EngineError): void {
@@ -153,6 +163,9 @@ const handlers: Record<string, Handler> = {
   explain: cmdExplain,
 };
 
+/** Canonical CLI command names, used by help output and docs-conformance tests. */
+export const COMMAND_NAMES: string[] = Object.keys(handlers);
+
 export const HELP = `HTML Engine — deterministic component-based HTML generator
 
 Usage: htmlng <command> [args]
@@ -189,6 +202,12 @@ Flags:
   --help       Show this help
 
 Page arguments accept both "build page <p>" and "build <p>".
+
+Exit codes:
+  0  success
+  1  any failure (validation error, missing file, usage error)
+
+Machine-readable errors carry a stable "code": run "htmlng explain <code>".
 `;
 
 // ── Entry point ─────────────────────────────────────────

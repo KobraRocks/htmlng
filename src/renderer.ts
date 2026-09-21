@@ -78,7 +78,7 @@ export function renderPage(
         const item = data[i] as Record<string, PlaceholderValue>;
         warnings.push(...validatePageData(comp, item, dataPath, { requireAltText }));
         const innerHTML = renderTemplate(comp.template, item, allComponents);
-        renderedComponents.push({ name, html: innerHTML, index: data.length > 1 ? i : undefined });
+        renderedComponents.push({ name, html: innerHTML, index: i });
       }
     } else {
       // Single object data — current behavior
