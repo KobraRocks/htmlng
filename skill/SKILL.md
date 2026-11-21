@@ -364,7 +364,7 @@ Common errors:
 - `Component not found` — component name typo or file missing
 
 Diagnostics:
-- Array-data schema errors name the failing element: `element [2] /body must be ...`.
+- Array-data diagnostics name the failing element: `element [2] /body must be ...` (text-field errors and unused-key warnings included).
 - `validate` warns `DATA_FILE_ORPHAN` for a `data/<page>/<component>.yaml` whose component the page no longer lists.
 - Warnings are de-duplicated, so each problem is reported once.
 - `htmlng render component` always prints `=== STATUS: rendered` — read-only render is always fresh and never claims `cached`.

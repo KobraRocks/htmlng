@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateComponent, validatePageStructure } from '../src/validator.js';
+import { validateComponent, validatePageData, validatePageStructure } from '../src/validator.js';
 import type { Component } from '../src/types.js';
 import { EngineError } from '../src/types.js';
 
@@ -107,5 +107,57 @@ describe('validateComponent — element placeholders in attributes', () => {
   it('accepts the placeholder as element content', () => {
     const comp = { ...base, template: '<span class="logo">{{image:logo}}</span>' };
     expect(() => validateComponent(comp)).not.toThrow();
+  });
+});
+
+describe('validatePageData — element attribution', () => {
+  const comp: Component = {
+    name: 'row',
+    template: '<p>{{text:body}}</p>',
+    css: '',
+    schema: { body: { type: 'text' } },
+  };
+
+  it('prefixes a text-field diagnostic with the element index', () => {
+    try {
+      validatePageData(comp, { body: '<div>x</div>' }, 'data/index/row.yaml', { itemIndex: 2 });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect((e as EngineError).code).toBe('TEXT_BLOCK_TAG');
+      expect((e as EngineError).message.startsWith('element [2] ')).toBe(true);
+    }
+  });
+
+  it('prefixes unused-key warnings with the element index', () => {
+    const warnings = validatePageData(
+      comp,
+      { body: 'ok', extra: 'x' },
+      'data/index/row.yaml',
+      { itemIndex: 1 },
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].code).toBe('DATA_KEY_UNUSED');
+    expect(warnings[0].message.startsWith('element [1] ')).toBe(true);
+  });
+
+  it('prefixes slot diagnostics with the element index', () => {
+    const card: Component = {
+      name: 'card',
+      template: '<div>{{slot:body}}</div>',
+      css: '',
+      schema: { body: { type: 'slot' } },
+    };
+    try {
+      validatePageData(
+        card,
+        { body: { component: 'missing' } },
+        'data/index/card.yaml',
+        { itemIndex: 4, components: new Map() },
+      );
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect((e as EngineError).code).toBe('SLOT_UNKNOWN_COMPONENT');
+      expect((e as EngineError).message.startsWith('element [4] ')).toBe(true);
+    }
   });
 });

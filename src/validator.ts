@@ -189,7 +189,8 @@ export function validatePageData(
 
   // Element context for array data files: "element [3] /body must ..." makes a
   // repeated component's failing element identifiable without manual bisection.
-  const where = options.itemIndex !== undefined ? `element [${options.itemIndex}] ` : '';
+  const elementPrefix =
+    options.itemIndex !== undefined ? `element [${options.itemIndex}] ` : '';
 
   // Schema validation — report every problem at once so one pass is enough to fix
   const result = validateSchema(comp.schema, data);
@@ -204,7 +205,7 @@ export function validatePageData(
       ? 'This data file is a YAML map, but none of its keys exist in the schema. To repeat the component, make it a YAML sequence (a list) with one element per instance and the schema fields at the top level of each element.'
       : undefined;
     throw new EngineError(
-      `Schema validation failed: ${result.errors.map((e) => `${where}${e}`).join('; ')}`,
+      `Schema validation failed: ${result.errors.map((e) => `${elementPrefix}${e}`).join('; ')}`,
       dataFilePath,
       undefined,
       'ERROR',
@@ -217,7 +218,7 @@ export function validatePageData(
   for (const key of Object.keys(data)) {
     if (!(key in comp.schema)) {
       warnings.push(new EngineError(
-        `Unused data key "${key}" — not in component schema`,
+        `${elementPrefix}Unused data key "${key}" — not in component schema`,
         dataFilePath,
         key,
         'WARNING',
@@ -237,7 +238,7 @@ export function validatePageData(
         const alt = (value as Record<string, unknown>).alt;
         if (typeof alt !== 'string') {
           throw new EngineError(
-            `${where}Image "${name}" is missing alt text`,
+            `${elementPrefix}Image "${name}" is missing alt text`,
             dataFilePath,
             name,
             'ERROR',
@@ -259,7 +260,7 @@ export function validatePageData(
       const reason = unsafeUrlReason(record.href);
       if (reason) {
         throw new EngineError(
-          `${where}Unsafe link href in "${name}": ${reason}`,
+          `${elementPrefix}Unsafe link href in "${name}": ${reason}`,
           dataFilePath, name, 'ERROR',
           'Use an http(s), mailto, tel, fragment (#...), or relative URL.',
           'UNSAFE_URL',
@@ -271,7 +272,7 @@ export function validatePageData(
       const reason = unsafeUrlReason(record.src, { allowDataImage: true });
       if (reason) {
         throw new EngineError(
-          `${where}Unsafe image src in "${name}": ${reason}`,
+          `${elementPrefix}Unsafe image src in "${name}": ${reason}`,
           dataFilePath, name, 'ERROR',
           'Use a path/URL, or a raster data:image/<type> URL.',
           'UNSAFE_URL',
@@ -294,25 +295,25 @@ export function validatePageData(
       const nested = options.components.get(componentName);
       if (!nested) {
         throw new EngineError(
-          `Slot references unknown component: ${componentName}`,
+          `${elementPrefix}Slot references unknown component: ${componentName}`,
           dataFilePath, name, 'ERROR', undefined, 'SLOT_UNKNOWN_COMPONENT',
         );
       }
 
       const depth = (options.slotDepth ?? 0) + 1;
       if (depth > 3) {
-        throw new EngineError('Slot nesting depth exceeds maximum (3)', dataFilePath, name, 'ERROR', undefined, 'SLOT_DEPTH_EXCEEDED');
+        throw new EngineError(`${elementPrefix}Slot nesting depth exceeds maximum (3)`, dataFilePath, name, 'ERROR', undefined, 'SLOT_DEPTH_EXCEEDED');
       }
       const visited = new Set(options.slotVisited ?? []);
       if (visited.has(componentName)) {
-        throw new EngineError(`Circular slot reference: ${componentName}`, dataFilePath, name, 'ERROR', undefined, 'SLOT_CIRCULAR');
+        throw new EngineError(`${elementPrefix}Circular slot reference: ${componentName}`, dataFilePath, name, 'ERROR', undefined, 'SLOT_CIRCULAR');
       }
       visited.add(componentName);
 
       const slotData = record.data;
       if (slotData !== undefined && (typeof slotData !== 'object' || slotData === null || Array.isArray(slotData))) {
         throw new EngineError(
-          `Slot data for "${name}" must be an object`,
+          `${elementPrefix}Slot data for "${name}" must be an object`,
           dataFilePath, name, 'ERROR', undefined, 'SCHEMA_VALIDATION',
         );
       }
@@ -329,7 +330,7 @@ export function validatePageData(
   // Text field tag validation
   for (const [name, def] of Object.entries(comp.schema)) {
     if (def.type === 'text' && typeof data[name] === 'string') {
-      validateText(data[name] as string, dataFilePath, name);
+      validateText(data[name] as string, dataFilePath, name, elementPrefix);
     }
   }
 

@@ -252,6 +252,59 @@ describe('issue 15 — diagnostics', () => {
   });
 });
 
+describe('issue 15.1 — element attribution', () => {
+  it('names the failing sequence element when a text field has a block tag', async () => {
+    project.component('sec', {
+      template: '<p>{{text:body}}</p>',
+      schema: '{"body":{"type":"text"}}',
+    });
+    project.page('index', ['sec']);
+    project.data('index', 'sec', '- body: "fine"\n- body: "fine"\n- body: "<div>bad</div>"\n');
+
+    const c = capture();
+    expect(await run(['validate', '--json'], c.io)).toBe(1);
+    const error = jsonOut(c).errors.find((e: { code: string }) => e.code === 'TEXT_BLOCK_TAG');
+    expect(error.message.startsWith('element [2] ')).toBe(true);
+  });
+
+  it('reports one unused-key warning per sequence element instead of collapsing them', async () => {
+    project.component('sec', {
+      template: '<p>{{text:body}}</p>',
+      schema: '{"body":{"type":"text"}}',
+    });
+    project.page('index', ['sec']);
+    project.data('index', 'sec', '- body: "a"\n  extra: 1\n- body: "b"\n  extra: 2\n');
+
+    const c = capture();
+    expect(await run(['validate', '--json'], c.io)).toBe(0);
+    const unused = jsonOut(c).warnings
+      .filter((w: { code: string }) => w.code === 'DATA_KEY_UNUSED')
+      .map((w: { message: string }) => w.message);
+    expect(unused).toEqual([
+      'element [0] Unused data key "extra" — not in component schema',
+      'element [1] Unused data key "extra" — not in component schema',
+    ]);
+  });
+
+  it('leaves map-form messages and warning counts unchanged', async () => {
+    project.component('sec', {
+      template: '<p>{{text:body}}</p>',
+      schema: '{"body":{"type":"text"}}',
+    });
+    project.page('index', ['sec']);
+    project.data('index', 'sec', 'body: "x"\nextra: 1\n');
+
+    const c = capture();
+    expect(await run(['validate', '--json'], c.io)).toBe(0);
+    const unused = jsonOut(c).warnings.filter(
+      (w: { code: string }) => w.code === 'DATA_KEY_UNUSED',
+    );
+    expect(unused.map((w: { message: string }) => w.message)).toEqual([
+      'Unused data key "extra" — not in component schema',
+    ]);
+  });
+});
+
 describe('issue 11 — repetition vs nested list is documented and explained', () => {
   it('separates the two data shapes in the machine spec', () => {
     expect(FORMAT_SPEC.dataShapes.componentRepetition).toContain('YAML sequence');

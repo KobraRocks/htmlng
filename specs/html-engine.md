@@ -540,7 +540,7 @@ features:
   - title: "Deterministic Output"
 ```
 
-**Validation rule**: every key in the data file must match a placeholder in the component's schema. Unknown keys produce a `WARNING`. Missing required keys produce an `ERROR` and the component/page will not render. In a sequence data file, schema errors name the failing element: `element [2] /body must be string`. A `data/<page>/<component>.yaml` whose component the page no longer lists produces a `DATA_FILE_ORPHAN` warning.
+**Validation rule**: every key in the data file must match a placeholder in the component's schema. Unknown keys produce a `WARNING`. Missing required keys produce an `ERROR` and the component/page will not render. In a sequence data file, diagnostics name the failing element: `element [2] /body must be string` (text-field errors and unused-key warnings included). A `data/<page>/<component>.yaml` whose component the page no longer lists produces a `DATA_FILE_ORPHAN` warning.
 
 ### 4.5 Component Rendering Rules
 

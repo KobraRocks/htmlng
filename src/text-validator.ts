@@ -26,7 +26,12 @@ const BLOCK_TAGS = new Set([
 const TAG_RE = /<\/?(\w+)([^>]*)>/g;
 const ATTR_RE = /(\w+)=/g;
 
-export function validateText(value: string, file: string, field: string): void {
+export function validateText(
+  value: string,
+  file: string,
+  field: string,
+  messagePrefix = '',
+): void {
   let match: RegExpExecArray | null;
   TAG_RE.lastIndex = 0;
 
@@ -37,12 +42,12 @@ export function validateText(value: string, file: string, field: string): void {
     if (!ALLOWED_TAGS[tagName]) {
       if (BLOCK_TAGS.has(tagName)) {
         throw new EngineError(
-          `Block-level tag <${tagName}> not allowed in text field. Use {{html:${field}}} for block-level content.`,
+          `${messagePrefix}Block-level tag <${tagName}> not allowed in text field. Use {{html:${field}}} for block-level content.`,
           file, field, 'ERROR', undefined, 'TEXT_BLOCK_TAG',
         );
       }
       throw new EngineError(
-        `Disallowed tag <${tagName}> in text field.`,
+        `${messagePrefix}Disallowed tag <${tagName}> in text field.`,
         file, field, 'ERROR',
         `Allowed inline tags: ${Object.keys(ALLOWED_TAGS).map(t => `<${t}>`).join(', ')}`,
         'TEXT_TAG_DISALLOWED',
@@ -52,7 +57,7 @@ export function validateText(value: string, file: string, field: string): void {
     const allowedAttrs = ALLOWED_TAGS[tagName];
     if (allowedAttrs.length === 0 && attrsStr.trim()) {
       throw new EngineError(
-        `Tag <${tagName}> does not allow any attributes in text field.`,
+        `${messagePrefix}Tag <${tagName}> does not allow any attributes in text field.`,
         file, field, 'ERROR', undefined, 'TEXT_ATTR_DISALLOWED',
       );
     }
@@ -63,7 +68,7 @@ export function validateText(value: string, file: string, field: string): void {
       const attrName = attrMatch[1].toLowerCase();
       if (!allowedAttrs.includes(attrName)) {
         throw new EngineError(
-          `Disallowed attribute "${attrName}" on <${tagName}> in text field.`,
+          `${messagePrefix}Disallowed attribute "${attrName}" on <${tagName}> in text field.`,
           file, field, 'ERROR',
           allowedAttrs.length > 0
             ? `Allowed attributes on <${tagName}>: ${allowedAttrs.join(', ')}.`
@@ -81,7 +86,7 @@ export function validateText(value: string, file: string, field: string): void {
         const reason = unsafeUrlReason(href);
         if (reason) {
           throw new EngineError(
-            `Unsafe href in text field: ${reason}`,
+            `${messagePrefix}Unsafe href in text field: ${reason}`,
             file, field, 'ERROR',
             'Use an http(s), mailto, tel, fragment (#...), or relative URL.',
             'UNSAFE_URL',
