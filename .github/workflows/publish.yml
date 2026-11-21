@@ -21,6 +21,9 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      - name: Update npm
+        run: npm install -g npm@11
+
       - name: Install
         run: npm ci
 
@@ -39,7 +42,7 @@ jobs:
       - name: Test
         run: npm test
 
+      # Authenticated by htmlng's npm trusted publisher for this workflow (OIDC),
+      # so no long-lived npm token is stored in this repository.
       - name: Publish
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
