@@ -623,7 +623,8 @@ async function cmdWatch(_args: string[]): Promise<number> {
   const { watch } = await import('chokidar');
   const config = loadConfig(ROOT);
 
-  buildPages();
+  const { warnings } = buildPages();
+  reportWarnings(warnings);
   io.out('Watching for changes...\n');
 
   const watcher = watch([
@@ -655,7 +656,7 @@ async function cmdWatch(_args: string[]): Promise<number> {
     try {
       const { warnings } = buildPages(pages);
       io.out(`=== REBUILT: ${pages.join(', ')} (changed: ${rel})\n`);
-      for (const w of warnings) io.err(w.format() + '\n');
+      reportWarnings(warnings);
     } catch (e) {
       if (e instanceof EngineError) io.err(e.format() + '\n');
       else throw e;
@@ -908,8 +909,9 @@ async function cmdServe(args: string[]): Promise<number> {
       if (timeout) clearTimeout(timeout);
       timeout = setTimeout(() => {
         try {
-          buildPages();
+          const { warnings } = buildPages();
           io.out('[rebuilt]\n');
+          reportWarnings(warnings);
           for (const client of clients) client.write('data: reload\n\n');
           clients.length = 0;
         } catch (e) {
