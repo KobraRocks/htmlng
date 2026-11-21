@@ -1,8 +1,9 @@
 /**
  * Diagnostics policy shared by the CLI (`src/cli.ts`) and the renderer
- * (`src/renderer.ts`): de-duplication, page-file attribution, and orphaned
- * data-file warnings. Callers own output; this module only builds and filters
- * diagnostics. `orphanDataWarnings` reads the data directory to find orphans.
+ * (`src/renderer.ts`). The CLI de-duplicates diagnostics and attributes them to
+ * page files; the renderer adds orphaned data-file warnings, delegating the
+ * data-directory scan to `findOrphanDataFiles`. Callers own output; this module
+ * never prints.
  */
 import { EngineError, type EngineConfig } from './types.js';
 import { findOrphanDataFiles } from './data-file.js';
