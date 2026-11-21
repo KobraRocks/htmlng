@@ -23,7 +23,7 @@ import { parseComponent, findComponents } from './component.js';
 import { parsePage, findPages } from './page.js';
 import { loadData, findOrphanDataFiles } from './data-file.js';
 import { FORMAT_SPEC } from './format-spec.js';
-import { ERROR_CATALOG, explainError, allErrorCodes } from './error-catalog.js';
+import { ERROR_CATALOG, explainError, allErrorCodes, type ErrorCode } from './error-catalog.js';
 import { escapeAttr } from './escape.js';
 
 let ROOT = process.cwd();
@@ -70,7 +70,7 @@ function emitError(e: EngineError): void {
   else io.err(e.format() + '\n');
 }
 
-function emitJsonError(code: string, message: string, help?: string): void {
+function emitJsonError(code: ErrorCode, message: string, help?: string): void {
   if (jsonMode) {
     const err: ErrorJson = { code, level: 'ERROR', file: '', message, help };
     emit({ ok: false, errors: [err] });

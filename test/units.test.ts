@@ -11,28 +11,15 @@ import { unsafeUrlReason } from '../src/url-safety.js';
 import { initProject, scaffoldData } from '../src/scaffold.js';
 import { renderPage, renderComponent } from '../src/renderer.js';
 import { EngineError } from '../src/types.js';
+import { createProject, type FixtureProject } from './helpers/fixture.js';
 
 let dir: string;
+let project: FixtureProject;
 let originalCwd: string;
 
 function codeOf(fn: () => unknown): string | undefined {
   try { fn(); return undefined; }
   catch (e) { return e instanceof EngineError ? e.code : `NOT_ENGINE:${(e as Error).message}`; }
-}
-
-function component(name: string, opts: { template?: string; schema?: string } = {}) {
-  const template = opts.template ?? '<h2>{{text:heading}}</h2>';
-  const schema = opts.schema ?? '{"heading":{"type":"text","required":true}}';
-  writeFileSync(join(dir, 'components', `${name}.component.html`), `${template}\n---\n\n---\n${schema}\n`);
-}
-
-function page(name: string, components: string[]) {
-  writeFileSync(join(dir, 'pages', `${name}.page.yaml`), `title: "${name}"\ndescription: "d"\ncomponents:\n${components.map((c) => `  - ${c}`).join('\n')}\n`);
-}
-
-function data(pageName: string, comp: string, yaml: string) {
-  mkdirSync(join(dir, 'data', pageName), { recursive: true });
-  writeFileSync(join(dir, 'data', pageName, `${comp}.yaml`), yaml);
 }
 
 function baseConfig(extra = '') {
@@ -44,18 +31,14 @@ function baseConfig(extra = '') {
 
 beforeEach(() => {
   originalCwd = process.cwd();
-  dir = mkdtempSync(join(tmpdir(), 'htmlng-units-'));
-  mkdirSync(join(dir, 'components'));
-  mkdirSync(join(dir, 'pages'));
-  writeFileSync(join(dir, 'global.css'), 'body { margin: 0; }\n');
-  writeFileSync(join(dir, 'design-tokens.yaml'), 'primary: "#000"\n');
-  baseConfig();
+  project = createProject({ prefix: 'htmlng-units-' });
+  dir = project.dir;
   process.chdir(dir);
 });
 
 afterEach(() => {
   process.chdir(originalCwd);
-  rmSync(dir, { recursive: true, force: true });
+  project.remove();
 });
 
 describe('config', () => {
@@ -105,13 +88,13 @@ describe('page', () => {
   });
 
   it('lists pages by base name', () => {
-    page('index', ['a']);
-    page('about', ['a']);
+    project.page('index', ['a']);
+    project.page('about', ['a']);
     expect(findPages(join(dir, 'pages')).sort()).toEqual(['about', 'index']);
   });
 
   it('orders numeric page names naturally, not lexicographically', () => {
-    for (const name of ['slide-1', 'slide-2', 'slide-10', 'slide-3']) page(name, ['a']);
+    for (const name of ['slide-1', 'slide-2', 'slide-10', 'slide-3']) project.page(name, ['a']);
     expect(findPages(join(dir, 'pages'))).toEqual(['slide-1', 'slide-2', 'slide-3', 'slide-10']);
   });
 
@@ -140,7 +123,7 @@ describe('page', () => {
   });
 
   it('leaves layout undefined when the page omits it', () => {
-    page('plain', ['a']);
+    project.page('plain', ['a']);
     expect(parsePage(join(dir, 'pages', 'plain.page.yaml')).layout).toBeUndefined();
   });
 
@@ -163,26 +146,26 @@ describe('data-file', () => {
   });
 
   it('returns an object for a map root and an array for a sequence root', () => {
-    data('index', 'one', 'heading: "x"\n');
-    data('index', 'many', '- heading: "a"\n- heading: "b"\n');
+    project.data('index', 'one', 'heading: "x"\n');
+    project.data('index', 'many', '- heading: "a"\n- heading: "b"\n');
     expect(loadData(dir, 'index', 'one')).toEqual({ heading: 'x' });
     expect(Array.isArray(loadData(dir, 'index', 'many'))).toBe(true);
     expect(loadData(dir, 'index', 'many')).toHaveLength(2);
   });
 
   it('rejects a scalar root', () => {
-    data('index', 'bad', 'just a string\n');
+    project.data('index', 'bad', 'just a string\n');
     expect(codeOf(() => loadData(dir, 'index', 'bad'))).toBe('DATA_ROOT_INVALID');
   });
 
   it('rejects an array element that is not an object', () => {
-    data('index', 'bad', '- one\n- two\n');
+    project.data('index', 'bad', '- one\n- two\n');
     expect(codeOf(() => loadData(dir, 'index', 'bad'))).toBe('DATA_ARRAY_ITEM_INVALID');
   });
 
   it('reports orphan data files with their resolved paths', () => {
-    data('index', 'used', 'heading: "x"\n');
-    data('index', 'stale', 'heading: "y"\n');
+    project.data('index', 'used', 'heading: "x"\n');
+    project.data('index', 'stale', 'heading: "y"\n');
     writeFileSync(join(dir, 'data', 'index', 'notes.txt'), 'ignored\n');
     const config = loadConfig(dir);
     expect(findOrphanDataFiles(dir, config, 'index', ['used'])).toEqual([
@@ -192,9 +175,8 @@ describe('data-file', () => {
   });
 
   it('locates orphan data files under a custom data directory', () => {
-    writeFileSync(join(dir, 'engine.config.yaml'), 'paths:\n  data: "content"\n');
-    mkdirSync(join(dir, 'content', 'index'), { recursive: true });
-    writeFileSync(join(dir, 'content', 'index', 'stale.yaml'), 'heading: "x"\n');
+    project.configure({ paths: { data: 'content' } });
+    project.data('index', 'stale', 'heading: "x"\n');
     expect(findOrphanDataFiles(dir, loadConfig(dir), 'index', [])).toEqual([
       { component: 'stale', file: join(dir, 'content', 'index', 'stale.yaml') },
     ]);
@@ -207,10 +189,10 @@ describe('data-file', () => {
 
 describe('propagation', () => {
   beforeEach(() => {
-    component('a');
-    component('b');
-    page('index', ['a', 'b']);
-    page('about', ['a']);
+    project.component('a');
+    project.component('b');
+    project.page('index', ['a', 'b']);
+    project.page('about', ['a']);
   });
 
   it('maps global.css to every page', () => {
@@ -286,7 +268,7 @@ describe('scaffold', () => {
   });
 
   it('scaffolds a slot data shape', () => {
-    component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
+    project.component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
     scaffoldData(dir, 'index', 'host');
     const yaml = readFileSync(join(dir, 'data', 'index', 'host.yaml'), 'utf-8');
     expect(yaml).toContain('component: ""');
@@ -296,55 +278,55 @@ describe('scaffold', () => {
 
 describe('security integration', () => {
   it('rejects a javascript: link href', () => {
-    component('cta', { template: '{{link:action}}', schema: '{"action":{"type":"link"}}' });
-    page('index', ['cta']);
-    data('index', 'cta', 'action:\n  href: "javascript:alert(1)"\n  label: "x"\n');
+    project.component('cta', { template: '{{link:action}}', schema: '{"action":{"type":"link"}}' });
+    project.page('index', ['cta']);
+    project.data('index', 'cta', 'action:\n  href: "javascript:alert(1)"\n  label: "x"\n');
     expect(codeOf(() => renderPage(dir, 'index'))).toBe('UNSAFE_URL');
   });
 
   it('rejects a javascript: href inside a text field', () => {
-    component('note', { template: '{{text:body}}', schema: '{"body":{"type":"text"}}' });
-    page('index', ['note']);
-    data('index', 'note', 'body: \'<a href="javascript:alert(1)">x</a>\'\n');
+    project.component('note', { template: '{{text:body}}', schema: '{"body":{"type":"text"}}' });
+    project.page('index', ['note']);
+    project.data('index', 'note', 'body: \'<a href="javascript:alert(1)">x</a>\'\n');
     expect(codeOf(() => renderPage(dir, 'index'))).toBe('UNSAFE_URL');
   });
 
   it('allows safe links', () => {
-    component('cta', { template: '{{link:action}}', schema: '{"action":{"type":"link"}}' });
-    page('index', ['cta']);
-    data('index', 'cta', 'action:\n  href: "https://example.com"\n  label: "x"\n');
+    project.component('cta', { template: '{{link:action}}', schema: '{"action":{"type":"link"}}' });
+    project.page('index', ['cta']);
+    project.data('index', 'cta', 'action:\n  href: "https://example.com"\n  label: "x"\n');
     expect(renderPage(dir, 'index')).toContain('href="https://example.com"');
   });
 
   it('validates slot sub-data against the nested schema', () => {
-    component('card', { template: '{{text:title}}', schema: '{"title":{"type":"text","required":true}}' });
-    component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
-    page('index', ['host']);
-    data('index', 'host', 'child:\n  component: card\n  data:\n    wrong_key: "x"\n');
+    project.component('card', { template: '{{text:title}}', schema: '{"title":{"type":"text","required":true}}' });
+    project.component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
+    project.page('index', ['host']);
+    project.data('index', 'host', 'child:\n  component: card\n  data:\n    wrong_key: "x"\n');
     expect(codeOf(() => renderPage(dir, 'index'))).toBe('SCHEMA_VALIDATION');
   });
 
   it('rejects a circular slot chain in data', () => {
-    component('a', { template: '{{slot:next}}', schema: '{"next":{"type":"slot"}}' });
-    component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
-    page('index', ['host']);
-    data('index', 'host', 'child:\n  component: a\n  data:\n    next:\n      component: a\n      data: {}\n');
+    project.component('a', { template: '{{slot:next}}', schema: '{"next":{"type":"slot"}}' });
+    project.component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
+    project.page('index', ['host']);
+    project.data('index', 'host', 'child:\n  component: a\n  data:\n    next:\n      component: a\n      data: {}\n');
     expect(codeOf(() => renderPage(dir, 'index'))).toBe('SLOT_CIRCULAR');
   });
 
   it('rejects slot data that is not an object', () => {
-    component('card', { template: '{{text:title}}', schema: '{"title":{"type":"text"}}' });
-    component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
-    page('index', ['host']);
-    data('index', 'host', 'child:\n  component: card\n  data: "nope"\n');
+    project.component('card', { template: '{{text:title}}', schema: '{"title":{"type":"text"}}' });
+    project.component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
+    project.page('index', ['host']);
+    project.data('index', 'host', 'child:\n  component: card\n  data: "nope"\n');
     expect(codeOf(() => renderPage(dir, 'index'))).toBe('SCHEMA_VALIDATION');
   });
 
   it('validates slot sub-data in render component too', () => {
-    component('card', { template: '{{text:title}}', schema: '{"title":{"type":"text","required":true}}' });
-    component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
-    page('index', ['host']);
-    data('index', 'host', 'child:\n  component: card\n  data: {}\n');
+    project.component('card', { template: '{{text:title}}', schema: '{"title":{"type":"text","required":true}}' });
+    project.component('host', { template: '{{slot:child}}', schema: '{"child":{"type":"slot"}}' });
+    project.page('index', ['host']);
+    project.data('index', 'host', 'child:\n  component: card\n  data: {}\n');
     expect(codeOf(() => renderComponent(dir, 'host', 'index'))).toBe('SCHEMA_VALIDATION');
   });
 });

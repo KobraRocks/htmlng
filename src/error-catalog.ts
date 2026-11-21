@@ -11,7 +11,7 @@ export interface CatalogEntry {
   fix: string;
 }
 
-export const ERROR_CATALOG: Record<string, CatalogEntry> = {
+export const ERROR_CATALOG = {
   // ── Component files ───────────────────────────────────
   COMPONENT_NOT_FOUND: {
     summary: 'A page references a component whose file does not exist.',
@@ -230,12 +230,19 @@ export const ERROR_CATALOG: Record<string, CatalogEntry> = {
     summary: 'An error without a specific code.',
     fix: 'Read the message and file reference; run "htmlng --help" for usage.',
   },
-};
+} as const satisfies Record<string, CatalogEntry>;
+
+/**
+ * Every stable error code, derived from the catalog. `EngineError` and
+ * `emitJsonError` accept only this union, so throwing an uncatalogued code is
+ * a type error rather than a test failure.
+ */
+export type ErrorCode = keyof typeof ERROR_CATALOG;
 
 export function explainError(code: string): CatalogEntry | null {
-  return ERROR_CATALOG[code] ?? null;
+  return Object.hasOwn(ERROR_CATALOG, code) ? ERROR_CATALOG[code as ErrorCode] : null;
 }
 
-export function allErrorCodes(): string[] {
-  return Object.keys(ERROR_CATALOG).sort();
+export function allErrorCodes(): ErrorCode[] {
+  return (Object.keys(ERROR_CATALOG) as ErrorCode[]).sort();
 }

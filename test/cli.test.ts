@@ -1,62 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { run, parseArgs } from '../src/cli.js';
-
-interface Capture {
-  io: { out(s: string): void; err(s: string): void };
-  out: string[];
-  err: string[];
-}
-
-function capture(): Capture {
-  const out: string[] = [];
-  const err: string[] = [];
-  return { io: { out: (s) => out.push(s), err: (s) => err.push(s) }, out, err };
-}
-
-const outText = (c: Capture) => c.out.join('');
-const errText = (c: Capture) => c.err.join('');
+import { capture, outText, errText, createProject, type FixtureProject } from './helpers/fixture.js';
 
 let dir: string;
+let project: FixtureProject;
 let originalCwd: string;
-
-function component(name: string, opts: { template?: string; css?: string; schema?: string } = {}) {
-  const template = opts.template ?? '<h2>{{text:heading}}</h2>';
-  const css = opts.css ?? '';
-  const schema = opts.schema ?? '{"heading":{"type":"text","required":true}}';
-  writeFileSync(join(dir, 'components', `${name}.component.html`), `${template}\n---\n${css}\n---\n${schema}\n`);
-}
-
-function page(name: string, components: string[]) {
-  writeFileSync(
-    join(dir, 'pages', `${name}.page.yaml`),
-    `title: "${name}"\ndescription: "d"\ncomponents:\n${components.map((c) => `  - ${c}`).join('\n')}\n`,
-  );
-}
-
-function data(pageName: string, comp: string, yaml: string) {
-  mkdirSync(join(dir, 'data', pageName), { recursive: true });
-  writeFileSync(join(dir, 'data', pageName, `${comp}.yaml`), yaml);
-}
 
 beforeEach(() => {
   originalCwd = process.cwd();
-  dir = mkdtempSync(join(tmpdir(), 'htmlng-cli-'));
-  mkdirSync(join(dir, 'components'));
-  mkdirSync(join(dir, 'pages'));
-  writeFileSync(
-    join(dir, 'engine.config.yaml'),
-    'project:\n  name: "T"\n  lang: "en"\npaths:\n  components: "components"\n  pages: "pages"\n  data: "data"\n  assets: "assets"\n  build: "build"\nbuild:\n  inlineCSS: false\n',
-  );
-  writeFileSync(join(dir, 'global.css'), 'body { margin: 0; }\n');
+  project = createProject({ prefix: 'htmlng-cli-' });
+  dir = project.dir;
   process.chdir(dir);
 });
 
 afterEach(() => {
   process.chdir(originalCwd);
-  rmSync(dir, { recursive: true, force: true });
+  project.remove();
 });
 
 describe('parseArgs', () => {
@@ -115,9 +76,9 @@ describe('run — dispatch and exit codes', () => {
 
 describe('run — validate is a real gate', () => {
   it('returns 0 and reports success on a clean project', async () => {
-    component('sec');
-    page('index', ['sec']);
-    data('index', 'sec', 'heading: "Hi"\n');
+    project.component('sec');
+    project.page('index', ['sec']);
+    project.data('index', 'sec', 'heading: "Hi"\n');
 
     const c = capture();
     expect(await run(['validate'], c.io)).toBe(0);
@@ -125,9 +86,9 @@ describe('run — validate is a real gate', () => {
   });
 
   it('returns 1, reports the error, and does NOT claim success on bad data', async () => {
-    component('sec');
-    page('index', ['sec']);
-    data('index', 'sec', 'heading: 123\n');
+    project.component('sec');
+    project.page('index', ['sec']);
+    project.data('index', 'sec', 'heading: 123\n');
 
     const c = capture();
     expect(await run(['validate'], c.io)).toBe(1);
@@ -137,9 +98,9 @@ describe('run — validate is a real gate', () => {
   });
 
   it('reports required sub-field failures with the field name', async () => {
-    component('sec', { template: '<p>{{link:cta}}</p>', schema: '{"cta":{"type":"link"}}' });
-    page('index', ['sec']);
-    data('index', 'sec', 'cta:\n  label: "Go"\n');
+    project.component('sec', { template: '<p>{{link:cta}}</p>', schema: '{"cta":{"type":"link"}}' });
+    project.page('index', ['sec']);
+    project.data('index', 'sec', 'cta:\n  label: "Go"\n');
 
     const c = capture();
     expect(await run(['validate'], c.io)).toBe(1);
@@ -149,11 +110,11 @@ describe('run — validate is a real gate', () => {
 
 describe('run — build', () => {
   it('wipes build/ so deleted pages do not linger', async () => {
-    component('sec');
-    page('index', ['sec']);
-    page('b', ['sec']);
-    data('index', 'sec', 'heading: "A"\n');
-    data('b', 'sec', 'heading: "B"\n');
+    project.component('sec');
+    project.page('index', ['sec']);
+    project.page('b', ['sec']);
+    project.data('index', 'sec', 'heading: "A"\n');
+    project.data('b', 'sec', 'heading: "B"\n');
 
     expect(await run(['build'], capture().io)).toBe(0);
     expect(existsSync(join(dir, 'build', 'index.html'))).toBe(true);
@@ -166,11 +127,11 @@ describe('run — build', () => {
   });
 
   it('builds only the named page for a targeted build', async () => {
-    component('sec');
-    page('index', ['sec']);
-    page('b', ['sec']);
-    data('index', 'sec', 'heading: "A"\n');
-    data('b', 'sec', 'heading: "B"\n');
+    project.component('sec');
+    project.page('index', ['sec']);
+    project.page('b', ['sec']);
+    project.data('index', 'sec', 'heading: "A"\n');
+    project.data('b', 'sec', 'heading: "B"\n');
 
     expect(await run(['build', 'b'], capture().io)).toBe(0);
     expect(existsSync(join(dir, 'build', 'b.html'))).toBe(true);
@@ -178,9 +139,9 @@ describe('run — build', () => {
   });
 
   it('accepts the explicit "page" keyword form', async () => {
-    component('sec');
-    page('index', ['sec']);
-    data('index', 'sec', 'heading: "A"\n');
+    project.component('sec');
+    project.page('index', ['sec']);
+    project.data('index', 'sec', 'heading: "A"\n');
 
     expect(await run(['build', 'page', 'index'], capture().io)).toBe(0);
     expect(existsSync(join(dir, 'build', 'index.html'))).toBe(true);
@@ -204,18 +165,18 @@ describe('run — scaffolding guards', () => {
 
 describe('run — render failures are reported with a code', () => {
   it('returns 1 when a page references a missing component', async () => {
-    page('index', ['ghost']);
+    project.page('index', ['ghost']);
     const c = capture();
     expect(await run(['render', 'page', 'index'], c.io)).toBe(1);
     expect(errText(c)).toContain('Component file not found');
   });
 
   it('does not emit a duplicate footer id when a footer component is not last', async () => {
-    component('hero', { template: '<h1>{{text:heading}}</h1>' });
-    component('footer', { template: '<p>{{text:heading}}</p>' });
-    page('index', ['footer', 'hero']);
-    data('index', 'hero', 'heading: "H"\n');
-    data('index', 'footer', 'heading: "F"\n');
+    project.component('hero', { template: '<h1>{{text:heading}}</h1>' });
+    project.component('footer', { template: '<p>{{text:heading}}</p>' });
+    project.page('index', ['footer', 'hero']);
+    project.data('index', 'hero', 'heading: "H"\n');
+    project.data('index', 'footer', 'heading: "F"\n');
 
     const c = capture();
     expect(await run(['render', 'page', 'index', '--compact'], c.io)).toBe(0);

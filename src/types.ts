@@ -1,5 +1,7 @@
 // ── HTML Engine — All type definitions ──────────────────
 
+import type { ErrorCode } from './error-catalog.js';
+
 export interface EngineConfig {
   project: { name: string; lang: string };
   paths: { components: string; pages: string; data: string; assets: string; build: string };
@@ -104,7 +106,7 @@ export type ErrorLevel = 'ERROR' | 'WARNING';
 
 /** Stable machine-readable shape used by `--json` output. */
 export interface ErrorJson {
-  code: string;
+  code: ErrorCode;
   level: ErrorLevel;
   file: string;
   field?: string;
@@ -119,7 +121,7 @@ export class EngineError extends Error {
     public field?: string,
     public level: ErrorLevel = 'ERROR',
     public help?: string,
-    public code = 'E_UNKNOWN',
+    public code: ErrorCode = 'E_UNKNOWN',
   ) {
     super(message);
     this.name = 'EngineError';
