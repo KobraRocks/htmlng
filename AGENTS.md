@@ -25,6 +25,7 @@ src/
   component.ts    parse components/<name>.component.html (template | css | schema)
   page.ts         parse pages/<name>.page.yaml
   data-file.ts    load data/<page>/<component>.yaml (object or array)
+  diagnostics.ts  diagnostic policy: de-duplication, orphan warnings, page attribution
   template.ts     {{type:name}}, {{#list}}/{{#bool}}/{{#if}}/{{#unless}}, {{slot}} resolution
   css.ts          selector scoping (with html/body/:root/:host and :global escapes),
                   @media/@keyframes/@page passthrough, per-page dedupe

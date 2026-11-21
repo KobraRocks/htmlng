@@ -96,9 +96,7 @@ export interface OrphanDataFile {
 
 /**
  * Data files under data/<pageName>/ whose component is not referenced by the page.
- * Reported by the page renderer as DATA_FILE_ORPHAN, so every command that
- * renders a page (validate, build, render page) warns about a stale file that
- * would silently be picked up if the component were re-added.
+ * Locates them only; `diagnostics.ts` turns each into a DATA_FILE_ORPHAN warning.
  *
  * Accepts the caller's already-loaded config and returns absolute file paths,
  * so path layout stays owned by this module. Sorted deterministically by

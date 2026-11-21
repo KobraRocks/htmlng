@@ -8,7 +8,8 @@ import { loadConfig } from './config.js';
 import { parseComponent, findComponents } from './component.js';
 import { renderTemplate } from './template.js';
 import { assemblePageCSS } from './css.js';
-import { loadData, dataFilePath, findOrphanDataFiles } from './data-file.js';
+import { loadData, dataFilePath } from './data-file.js';
+import { orphanDataWarnings } from './diagnostics.js';
 import { parsePage } from './page.js';
 import { validateComponent, validatePageData, validatePageStructure } from './validator.js';
 
@@ -182,20 +183,9 @@ export function renderPage(
 
   const html = `<!DOCTYPE html>\n<html lang="${escapeAttr(lang)}">\n<head>\n${head}</head>\n<body${bodyAttributes(pageName, page.layout)}>\n${body}${bodyScripts}</body>\n</html>`;
 
-  // A data file whose component the page no longer lists produces no output,
-  // but silently comes back if the component returns. Report it from every
-  // command that renders a page (build, render page, validate, watch), not just
-  // from `validate` — the stale-content trap is the same either way (issue 12).
-  for (const orphan of findOrphanDataFiles(rootDir, config, pageName, page.components)) {
-    warnings.push(new EngineError(
-      `Data file "${orphan.file}" has no matching component on page "${pageName}"`,
-      orphan.file,
-      undefined,
-      'WARNING',
-      `Delete the file, or add "${orphan.component}" back to the page's components.`,
-      'DATA_FILE_ORPHAN',
-    ));
-  }
+  // Orphaned data files are surfaced here so every page-rendering command sees
+  // them, not only `validate` (issue 12).
+  warnings.push(...orphanDataWarnings(rootDir, config, pageName, page.components));
 
   // Validate structure
   validatePageStructure(html);

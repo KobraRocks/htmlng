@@ -22,6 +22,7 @@ import { validateComponent, validatePageStructure } from './validator.js';
 import { parseComponent, findComponents } from './component.js';
 import { parsePage, findPages } from './page.js';
 import { loadData } from './data-file.js';
+import { collectDiagnostic, dedupeDiagnostics } from './diagnostics.js';
 import { FORMAT_SPEC } from './format-spec.js';
 import { ERROR_CATALOG, explainError, allErrorCodes, type ErrorCode } from './error-catalog.js';
 import { escapeAttr } from './escape.js';
@@ -455,38 +456,27 @@ async function cmdValidate(args: string[]): Promise<number> {
   const warnings: EngineError[] = [];
   const config = loadConfig(ROOT);
 
-  // Structural page errors carry no file; attribute them to the page file so
-  // two pages failing the same way are not collapsed by de-duplication.
-  const collect = (fn: () => void, pageFile?: string) => {
-    try { fn(); }
-    catch (e) {
-      if (!(e instanceof EngineError)) throw e;
-      errors.push(pageFile && !e.file
-        ? new EngineError(e.message, pageFile, e.field, e.level, e.help, e.code)
-        : e);
-    }
-  };
   const pageFileOf = (page: string) => join(config.paths.pages, `${page}.page.yaml`);
 
   const target = args[0];
   let scope = 'all';
   if (target === 'page' && args[1]) {
     scope = `page:${args[1]}`;
-    collect(() => validatePageStructure(renderPage(ROOT, args[1], false, warnings)), pageFileOf(args[1]));
+    collectDiagnostic(errors, () => validatePageStructure(renderPage(ROOT, args[1], false, warnings)), pageFileOf(args[1]));
   } else if (target === 'component' && args[1]) {
     scope = `component:${args[1]}`;
     const comp = parseComponent(join(ROOT, config.paths.components, `${args[1]}.component.html`));
-    collect(() => { warnings.push(...validateComponent(comp)); });
+    collectDiagnostic(errors, () => { warnings.push(...validateComponent(comp)); });
   } else if (target) {
     emitJsonError('CLI_UNKNOWN_COMMAND', `Usage: htmlng validate [page <p>|component <c>]`, 'Run: htmlng --help');
     return 1;
   } else {
     // Validate every page and component, collecting all failures instead of stopping at the first
     for (const p of findPages(join(ROOT, config.paths.pages))) {
-      collect(() => validatePageStructure(renderPage(ROOT, p, false, warnings)), pageFileOf(p));
+      collectDiagnostic(errors, () => validatePageStructure(renderPage(ROOT, p, false, warnings)), pageFileOf(p));
     }
     for (const c of findComponents(join(ROOT, config.paths.components))) {
-      collect(() => { warnings.push(...validateComponent(parseComponent(join(ROOT, config.paths.components, `${c}.component.html`)))); });
+      collectDiagnostic(errors, () => { warnings.push(...validateComponent(parseComponent(join(ROOT, config.paths.components, `${c}.component.html`)))); });
     }
   }
 
@@ -520,17 +510,6 @@ async function cmdValidate(args: string[]): Promise<number> {
   }
   io.out('Validation passed.\n');
   return 0;
-}
-
-/** Drop exact duplicates so a warning is never reported more than once. */
-function dedupeDiagnostics(items: EngineError[]): EngineError[] {
-  const seen = new Set<string>();
-  return items.filter((e) => {
-    const key = `${e.code}|${e.file}|${e.field ?? ''}|${e.message}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 interface BuildOutcome {
