@@ -80,7 +80,11 @@ function emitJsonError(code: ErrorCode, message: string, help?: string): void {
   }
 }
 
-/** Print collected warnings; return 1 when `--strict`/config strict is active. */
+/**
+ * Print collected warnings; return 1 when `--strict`/config strict is active.
+ * Long-running commands (`watch`, `serve --watch`) report through this helper
+ * but ignore the return, so a warning does not turn into an exit.
+ */
 function reportWarnings(warnings: EngineError[]): number {
   const unique = dedupeDiagnostics(warnings);
   for (const w of unique) io.err(w.format() + '\n');
@@ -635,6 +639,9 @@ async function cmdWatch(_args: string[]): Promise<number> {
     join(ROOT, 'design-tokens.yaml'),
   ], {
     ignored: ['**/node_modules/**', '**/.engine-cache.json'],
+    // The initial build already covers files present at startup; chokidar's
+    // initial `add` scan would emit every one of them and rebuild immediately.
+    ignoreInitial: true,
     persistent: true,
   });
 

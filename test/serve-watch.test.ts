@@ -15,6 +15,7 @@ const TSX_LOADER = join(REPO_ROOT, 'node_modules', 'tsx', 'dist', 'loader.mjs');
 const CLI_ENTRY = join(REPO_ROOT, 'src', 'index.ts');
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+const WAIT_MS = 10_000;
 
 interface CliProcess {
   stdout(): string;
@@ -62,8 +63,8 @@ function startCli(cwd: string, args: string[]): CliProcess {
   return {
     stdout: () => out,
     stderr: () => err,
-    waitForStdout: (pattern, timeoutMs = 10_000) => waitFor(() => out, pattern, 'stdout', timeoutMs),
-    waitForStderr: (pattern, timeoutMs = 10_000) => waitFor(() => err, pattern, 'stderr', timeoutMs),
+    waitForStdout: (pattern, timeoutMs = WAIT_MS) => waitFor(() => out, pattern, 'stdout', timeoutMs),
+    waitForStderr: (pattern, timeoutMs = WAIT_MS) => waitFor(() => err, pattern, 'stderr', timeoutMs),
     async stop() {
       if (child.exitCode !== null || child.signalCode !== null) return;
       const exited = new Promise((resolve) => child.once('exit', resolve));
@@ -97,7 +98,7 @@ describe('long-running commands report warnings', () => {
     return cli;
   }
 
-  function projectWithOrphan(): string {
+  function seedProjectWithOrphan(): string {
     project.component('sec');
     project.page('index', ['sec']);
     project.data('index', 'sec', 'heading: "H"\n');
@@ -106,14 +107,21 @@ describe('long-running commands report warnings', () => {
   }
 
   it("prints orphan warnings from watch's initial build", async () => {
-    const orphan = projectWithOrphan();
+    const orphan = seedProjectWithOrphan();
 
     const cli = start(['watch']);
 
     await cli.waitForStderr(/WARNING \[.*orphan\.yaml\]: Data file/);
+    await cli.waitForStdout(/Watching for changes/);
+    await delay(250);
+
     expect(cli.stderr()).toContain(
-      `Data file "${orphan}" has no matching component on page "index"`,
+      `WARNING [${orphan}]: Data file "${orphan}" has no matching component on page "index"`,
     );
+    // The initial build is the only report at startup; chokidar's initial add
+    // scan must not trigger a second rebuild that repeats the warning.
+    expect(cli.stderr().match(/^WARNING \[/gm) ?? []).toHaveLength(1);
+    expect(cli.stdout()).not.toContain('=== REBUILT');
   }, 15_000);
 
   it("adds no stderr output when watch's initial build has no warnings", async () => {
@@ -129,7 +137,7 @@ describe('long-running commands report warnings', () => {
   }, 15_000);
 
   it('prints orphan warnings when serve --watch rebuilds', async () => {
-    const orphan = projectWithOrphan();
+    const orphan = seedProjectWithOrphan();
     const pagePath = join(project.dir, 'pages', 'index.page.yaml');
     const originalPage = readFileSync(pagePath, 'utf8');
 
@@ -144,7 +152,7 @@ describe('long-running commands report warnings', () => {
     }
 
     expect(cli.stderr()).toContain(
-      `Data file "${orphan}" has no matching component on page "index"`,
+      `WARNING [${orphan}]: Data file "${orphan}" has no matching component on page "index"`,
     );
     expect(cli.stdout()).toContain('[rebuilt]');
   }, 20_000);

@@ -158,6 +158,8 @@ Run `htmlng explain <CODE>` (or read `src/error-catalog.ts`) for the full list.
 - Unit tests import the module under test; CLI tests call `run(argv, ioSink)` with a
   captured sink and assert on the returned exit code plus stdout/stderr.
 - CLI tests `process.chdir()` into a `mkdtempSync` fixture project and restore cwd after.
+- Long-running commands (`watch`, `serve`) never return from `run()`; spawn the real
+  entry point (`test/serve-watch.test.ts`) and assert on stdout/stderr instead.
 - Error tests assert `EngineError.code` where relevant.
 - `test/docs.test.ts` keeps README/SKILL/HELP in sync with the command list — update the
   docs when you add a command, or that test fails.
