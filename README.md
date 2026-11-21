@@ -156,7 +156,7 @@ scripts:
     head: true                     # → <head>, with defer added unless defer/async is set
 ```
 
-`layout.wrapper: true` gives you one container to own flex/grid layout, a fixed canvas, or a print size; the validator allows that `<div id="page">` plus page scripts as direct body children. `list pages`, `context`, and build-all enumerate pages in **natural sort order** (`slide-1`, `slide-2`, `slide-10`). Component CSS is still auto-prefixed with `.<name>`, except selectors starting with `html`/`body`/`:root`/`:host` and any `:global(...)` selector, which are emitted unscoped — `body { display: flex }` stays `body { display: flex }`, `:global(.leaflet-container) { z-index: 1 }` becomes `.leaflet-container { z-index: 1 }`.
+`layout.wrapper: true` gives you one container to own flex/grid layout, a fixed canvas, or a print size; the validator allows that `<div id="page">` plus page scripts as direct body children. `list pages`, `context`, and build-all enumerate pages in **natural sort order** (`slide-1`, `slide-2`, `slide-10`). Component CSS is still auto-prefixed with `.<name>`, except selectors starting with `html`/`body`/`:root`/`:host` and selectors led by `:global(...)`, which are emitted unscoped — `body { display: flex }` stays `body { display: flex }`, `:global(.leaflet-container) { z-index: 1 }` becomes `.leaflet-container { z-index: 1 }`. A `:global(...)` later in a selector exempts only the wrapped compound: `.card :global(.selected)` becomes `.hero .card .selected`.
 
 ### Print and fixed-canvas output
 

@@ -120,6 +120,7 @@ function scopeAtRuleBlock(block: string, prefix: string): string {
 // document root, so a component prefix could never match it. The trailing
 // character class excludes `-` so custom elements like `body-copy` stay scoped.
 const ROOT_SELECTOR = /^(?:html|body|:root|:host)(?![A-Za-z0-9_-])/i;
+const LEADING_GLOBAL_SELECTOR = /^:global\s*\(/;
 const GLOBAL_SELECTOR = /:global\s*\(/;
 
 function prefixSelectors(selectorList: string, prefix: string): string {
@@ -201,14 +202,18 @@ function unwrapGlobal(sel: string): string {
 }
 
 function scopeSelector(sel: string, prefix: string): string {
-  // Any :global(...) opts the whole selector out of scoping; unwrap it to X.
-  if (GLOBAL_SELECTOR.test(sel)) {
+  // A leading :global(...) is the whole-selector escape hatch; unwrap it so a
+  // document-wide selector is emitted unprefixed.
+  if (LEADING_GLOBAL_SELECTOR.test(sel)) {
     const unwrapped = unwrapGlobal(sel);
     return unwrapped.trim() ? unwrapped : sel;
   }
-  if (ROOT_SELECTOR.test(sel)) return sel;
-  if (isAlreadyScoped(sel, prefix)) return sel;
-  return `${prefix} ${sel}`;
+  // A :global(...) later in the selector exempts only the wrapped compound;
+  // the surrounding local compounds still belong to the component.
+  const local = GLOBAL_SELECTOR.test(sel) ? unwrapGlobal(sel) : sel;
+  if (ROOT_SELECTOR.test(local)) return local;
+  if (isAlreadyScoped(local, prefix)) return local;
+  return `${prefix} ${local}`;
 }
 
 /** True when the selector already begins with this component's class, with a

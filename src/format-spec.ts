@@ -11,7 +11,7 @@ export const FORMAT_SPEC = {
     separator: 'a line containing only --- (surrounding whitespace ignored)',
     sections: [
       { name: 'template', required: true, content: 'HTML containing {{type:name}} placeholders' },
-      { name: 'css', required: false, content: 'CSS; selectors are prefixed with .<name> automatically. Root selectors (html, body, :root, :host) and any selector containing :global(...) are emitted unscoped.' },
+      { name: 'css', required: false, content: 'CSS; selectors are prefixed with .<name> automatically. Root selectors (html, body, :root, :host) and selectors led by :global(...) are emitted unscoped; a :global(...) elsewhere exempts only the wrapped compound.' },
       { name: 'schema', required: true, content: 'JSON object mapping placeholder name -> definition' },
     ],
     sectionOrder: ['template', 'css?', 'schema'],

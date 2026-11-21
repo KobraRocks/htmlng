@@ -704,6 +704,7 @@ For each component `C` with class `c` and CSS block `B`:
 For every rule in B:
   For each selector in the comma-separated selector list:
     If the selector starts with :global(...), emit it unscoped with :global(...) unwrapped
+    Else if the selector contains :global(...), unwrap each :global(...) and apply the rules below to the rest
     Else if the selector's first compound starts with html, body, :root, or :host, emit it unchanged
     Else if the selector is already prefixed with .c, leave it unchanged
     Else, prepend ".c " to the selector
@@ -717,12 +718,13 @@ Example:
   Output: .hero h1, .hero h2, .hero h3 { margin: 0; }
 ```
 
-**Scoping escape hatch (issue 07).** A `.c ` prefix could never match a document-root selector, so those are emitted unscoped; `:global(...)` opts a whole selector out:
+**Scoping escape hatch (issue 07).** A `.c ` prefix could never match a document-root selector, so those are emitted unscoped. A selector that *begins* with `:global(...)` is emitted unscoped; a `:global(...)` later in a selector applies only to the wrapped compound, and the surrounding local compounds stay scoped:
 
 ```css
 /* component CSS input                     → assembled output */
 body { display: flex; }                    /* → body { display: flex; } */
 :global(.leaflet-container) { z-index: 1; }/* → .leaflet-container { z-index: 1; } */
+.card :global(.selected) { color: red; }   /* → .hero .card .selected { color: red; } */
 @page { size: 1280px 720px; margin: 0; }   /* → passed through verbatim */
 ```
 
@@ -1215,7 +1217,7 @@ The AI reads these, fixes the input files, and re-runs the appropriate render co
 - `document.querySelectorAll('body>*')` returns only `header`, `section`, `footer`, page `script` tags, and at most one `div#page` layout wrapper
 - Every `section[id]` has exactly one matching component class; sequence-data elements use `id="<name>-<index>"`
 - No two elements share the same `id`
-- CSS file contains only prefixed selectors matching components on the page, except root selectors (`html`/`body`/`:root`/`:host`), `:global(...)` opt-outs, and `@page` passthrough
+- CSS file contains only prefixed selectors matching components on the page, except root selectors (`html`/`body`/`:root`/`:host`), selectors led by `:global(...)`, and `@page` passthrough
 - `<script>` tags are only present if declared in page YAML; they appear at end of `<body>` (or in `<head>` with `defer` when `head: true`)
 - No `<style>` tags or inline `style="..."` attributes exist anywhere in the output
 

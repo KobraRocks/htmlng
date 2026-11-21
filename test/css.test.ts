@@ -60,7 +60,7 @@ describe('scopeCSS', () => {
     expect(scopeCSS('bodyguard { color: red; }', 'hero')).toBe('.hero bodyguard { color: red; }');
   });
 
-  it('unwraps :global(...) and opts the whole selector out of scoping', () => {
+  it('unwraps :global(...) and opts the whole selector out when it leads', () => {
     expect(scopeCSS(':global(.leaflet-container) { z-index: 1; }', 'hero')).toBe(
       '.leaflet-container { z-index: 1; }',
     );
@@ -68,6 +68,21 @@ describe('scopeCSS', () => {
       'body .x { color: red; }',
     );
     expect(scopeCSS(':global( .y ) { color: red; }', 'hero')).toBe('.y { color: red; }');
+  });
+
+  it('scopes the local compounds of a selector that contains :global(...)', () => {
+    expect(scopeCSS('.card :global(.selected) { color: red; }', 'hero')).toBe(
+      '.hero .card .selected { color: red; }',
+    );
+    expect(scopeCSS('.card > :global(.selected) { color: red; }', 'hero')).toBe(
+      '.hero .card > .selected { color: red; }',
+    );
+    expect(scopeCSS('.card:global(.selected) { color: red; }', 'hero')).toBe(
+      '.hero .card.selected { color: red; }',
+    );
+    expect(scopeCSS('.hero .card :global(.selected) { color: red; }', 'hero')).toBe(
+      '.hero .card .selected { color: red; }',
+    );
   });
 
   it('still prefixes a normal selector', () => {

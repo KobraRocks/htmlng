@@ -244,13 +244,15 @@ A nested `"items": {"type": "list", "item": {"title": {...}}}` item schema is **
 **Scoping escape hatch.** Component CSS is prefixed with `.<name>`, except:
 
 - selectors whose first compound starts with `html`, `body`, `:root`, or `:host` are emitted **unscoped** (a `.name ` prefix could never match them);
-- any selector containing `:global(...)` is emitted unscoped with `:global(...)` unwrapped (a whole-selector opt-out);
+- a selector that *begins* with `:global(...)` is emitted unscoped with `:global(...)` unwrapped (a whole-selector opt-out);
+- a `:global(...)` elsewhere in a selector exempts only the wrapped compound; the surrounding local compounds stay scoped;
 - `@page` passes through verbatim.
 
 ```css
 /* component CSS input            → assembled output */
 body { display: flex; }           /* → body { display: flex; } */
 :global(.leaflet-container) { z-index: 1; } /* → .leaflet-container { z-index: 1; } */
+.card :global(.selected) { color: red; }    /* → .hero .card .selected { color: red; } */
 h1 { font-size: 3rem; }           /* → .hero h1 { font-size: 3rem; } */
 ```
 
@@ -373,7 +375,7 @@ Run `htmlng explain <CODE>` for the full catalog (codes appear in `--json` outpu
 
 - **Never edit `build/` directly** — it's regenerated from source on every `htmlng build`
 - **Wrapper tags follow the component NAME, not page position** — a component named `header` → `<header id="header" class="header">`, `footer` → `<footer ...>`, every other component → `<section id="<name>" class="<name>">`. Array data elements get `id="<name>-<index>"`. A default `<footer id="footer">` is appended only when no component named `footer` exists.
-- **Component CSS is auto-scoped** — write `h1 { ... }` and the htmlng emits `.hero h1 { ... }`; selectors starting with `html`/`body`/`:root`/`:host` and `:global(...)` selectors are emitted unscoped (see the escape hatch above)
+- **Component CSS is auto-scoped** — write `h1 { ... }` and the htmlng emits `.hero h1 { ... }`; selectors starting with `html`/`body`/`:root`/`:host` and selectors led by `:global(...)` are emitted unscoped, while a `:global(...)` later in a selector exempts only that compound (see the escape hatch above)
 - **Global CSS sets baseline** — `global.css` defines typography, colors, spacing for all semantic elements
 - **Component files are three sections** separated by `---`: template, CSS (optional), JSON schema
 - **`paths.build` is a single path segment** (no `/` or `..`) and is wiped when building all pages

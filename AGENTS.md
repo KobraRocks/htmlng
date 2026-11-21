@@ -90,7 +90,8 @@ htmlng build                                # write build/
 3. **No `<script>`, `<style>`, or `style="..."` in a component template.** Scripts go in
    the page YAML (end of `<body>` by default, or `<head>` with `head: true`); styles go in
    the CSS section (auto-scoped under the component class, except `html`/`body`/`:root`/`:host`
-   first compounds and `:global(...)` selectors, which stay unscoped).
+   first compounds and selectors led by `:global(...)`, which stay unscoped; a `:global(...)`
+   later in a selector exempts only the wrapped compound).
 4. **Every template placeholder must exist in the schema, and vice versa** (the latter
    is a warning). `text` fields allow only the inline whitelist. `if`/`unless` blocks share
    the component scope; `list` item fields do not.
