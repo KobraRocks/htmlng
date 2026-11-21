@@ -156,7 +156,7 @@ by `src/error-catalog.ts`). This file keeps no error catalogue of its own.
 | New placeholder type | `src/types.ts`, `src/schema.ts`, `src/template.ts`, `src/format-spec.ts`, `src/component.ts` |
 | New error | `src/error-catalog.ts` + throw with that code |
 | Validation rule | `src/validator.ts` / `src/schema.ts` / `src/text-validator.ts` |
-| Diagnostics policy | `src/diagnostics.ts` (de-duplication, orphan warnings, page attribution) |
+| Diagnostics policy | `src/diagnostics.ts` |
 | CSS scoping | `src/css.ts` |
 | Output shape | `src/renderer.ts` |
 

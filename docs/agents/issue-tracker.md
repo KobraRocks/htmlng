@@ -20,7 +20,8 @@ File issues only into the user's own repo: `KobraRocks/htmlng`. Never file into 
 
 ## Acceptance criteria
 
-Write ACs as checks a fresh agent can run. Before filing an issue:
+Write ACs as checks a fresh agent can run. Apply these when filing an issue and
+again before closing it:
 
 - [ ] **Jointly satisfiable.** Every pair of ACs can be true at once. If two pull
       against each other, say which one wins or split the other out now.
