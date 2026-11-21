@@ -8,7 +8,7 @@ import { loadConfig } from './config.js';
 import { parseComponent, findComponents } from './component.js';
 import { renderTemplate } from './template.js';
 import { assemblePageCSS } from './css.js';
-import { loadData } from './data-file.js';
+import { loadData, dataFilePath } from './data-file.js';
 import { parsePage } from './page.js';
 import { validateComponent, validatePageData, validatePageStructure } from './validator.js';
 
@@ -70,7 +70,7 @@ export function renderPage(
   for (const name of page.components) {
     const comp = allComponents.get(name)!;
     const data = loadData(rootDir, pageName, name);
-    const dataPath = join(rootDir, config.paths.data, pageName, `${name}.yaml`);
+    const dataPath = dataFilePath(rootDir, config, pageName, name);
 
     if (Array.isArray(data)) {
       // Array data — render one section per array element
@@ -221,7 +221,7 @@ export function renderComponent(
   warnings.push(...validateComponent(comp));
 
   const data = loadData(rootDir, pageName, componentName);
-  const dataPath = join(rootDir, config.paths.data, pageName, `${componentName}.yaml`);
+  const dataPath = dataFilePath(rootDir, config, pageName, componentName);
   const requireAltText = config.validation.requireAltText;
 
   if (Array.isArray(data)) {

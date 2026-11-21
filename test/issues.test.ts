@@ -230,7 +230,11 @@ describe('issue 15 — diagnostics', () => {
 
     const c = capture();
     expect(await run(['validate', '--json'], c.io)).toBe(0);
-    expect(jsonOut(c).warnings.map((w: { code: string }) => w.code)).toContain('DATA_FILE_ORPHAN');
+    const orphan = jsonOut(c).warnings.find(
+      (w: { code: string }) => w.code === 'DATA_FILE_ORPHAN',
+    );
+    expect(orphan.file).toBe(join(dir, 'data', 'index', 'stale.yaml'));
+    expect(orphan.help).toContain('"stale"');
   });
 
   it('reports a warning once, not once per page and per component', async () => {

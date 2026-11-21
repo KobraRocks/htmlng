@@ -1,11 +1,24 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
-import type { PlaceholderValue } from './types.js';
+import type { EngineConfig, PlaceholderValue } from './types.js';
 import { EngineError } from './types.js';
 import { loadConfig } from './config.js';
 
 const DATA_SUFFIX = '.yaml';
+
+/**
+ * Path of the data file for one component on one page, rooted at `rootDir`.
+ * The only place that knows how a data file is addressed.
+ */
+export function dataFilePath(
+  rootDir: string,
+  config: EngineConfig,
+  pageName: string,
+  componentName: string,
+): string {
+  return join(rootDir, config.paths.data, pageName, `${componentName}${DATA_SUFFIX}`);
+}
 
 /**
  * Load data/<pageName>/<componentName>.yaml (respecting config.paths.data).
@@ -21,7 +34,7 @@ export function loadData(
   componentName: string,
 ): Record<string, PlaceholderValue> | Record<string, PlaceholderValue>[] {
   const config = loadConfig(rootDir);
-  const filePath = join(rootDir, config.paths.data, pageName, `${componentName}.yaml`);
+  const filePath = dataFilePath(rootDir, config, pageName, componentName);
 
   try {
     const content = readFileSync(filePath, 'utf-8');
@@ -73,16 +86,29 @@ export function loadData(
   }
 }
 
+/** A data file whose component the page no longer lists. */
+export interface OrphanDataFile {
+  /** File base name without the extension — the component it was written for. */
+  component: string;
+  /** Path of the orphaned data file, rooted at `rootDir`. */
+  file: string;
+}
+
 /**
  * Data files under data/<pageName>/ whose component is not referenced by the page.
  * Used by `validate` to report DATA_FILE_ORPHAN (a stale file that would
  * silently be picked up if the component were re-added).
  *
- * Returns the component names (file base names without the extension) sorted
- * deterministically; `[]` when the page's data directory does not exist.
+ * Accepts the caller's already-loaded config and returns absolute file paths,
+ * so path layout stays owned by this module. Sorted deterministically by
+ * component name; `[]` when the page's data directory does not exist.
  */
-export function findOrphanDataComponents(rootDir: string, pageName: string, componentNames: string[]): string[] {
-  const config = loadConfig(rootDir);
+export function findOrphanDataFiles(
+  rootDir: string,
+  config: EngineConfig,
+  pageName: string,
+  componentNames: string[],
+): OrphanDataFile[] {
   const dir = join(rootDir, config.paths.data, pageName);
 
   let files: string[];
@@ -97,5 +123,6 @@ export function findOrphanDataComponents(rootDir: string, pageName: string, comp
     .filter((f) => f.endsWith(DATA_SUFFIX))
     .map((f) => f.slice(0, -DATA_SUFFIX.length))
     .filter((name) => !referenced.has(name))
-    .sort();
+    .sort()
+    .map((component) => ({ component, file: dataFilePath(rootDir, config, pageName, component) }));
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadConfig } from '../src/config.js';
 import { parsePage, findPages, comparePageNames } from '../src/page.js';
-import { loadData, findOrphanDataComponents } from '../src/data-file.js';
+import { loadData, findOrphanDataFiles } from '../src/data-file.js';
 import { affectedPages } from '../src/propagation.js';
 import { copyAssets } from '../src/copier.js';
 import { unsafeUrlReason } from '../src/url-safety.js';
@@ -180,16 +180,28 @@ describe('data-file', () => {
     expect(codeOf(() => loadData(dir, 'index', 'bad'))).toBe('DATA_ARRAY_ITEM_INVALID');
   });
 
-  it('reports data files whose component the page does not reference', () => {
+  it('reports orphan data files with their resolved paths', () => {
     data('index', 'used', 'heading: "x"\n');
     data('index', 'stale', 'heading: "y"\n');
     writeFileSync(join(dir, 'data', 'index', 'notes.txt'), 'ignored\n');
-    expect(findOrphanDataComponents(dir, 'index', ['used'])).toEqual(['stale']);
-    expect(findOrphanDataComponents(dir, 'index', ['used', 'stale'])).toEqual([]);
+    const config = loadConfig(dir);
+    expect(findOrphanDataFiles(dir, config, 'index', ['used'])).toEqual([
+      { component: 'stale', file: join(dir, 'data', 'index', 'stale.yaml') },
+    ]);
+    expect(findOrphanDataFiles(dir, config, 'index', ['used', 'stale'])).toEqual([]);
+  });
+
+  it('locates orphan data files under a custom data directory', () => {
+    writeFileSync(join(dir, 'engine.config.yaml'), 'paths:\n  data: "content"\n');
+    mkdirSync(join(dir, 'content', 'index'), { recursive: true });
+    writeFileSync(join(dir, 'content', 'index', 'stale.yaml'), 'heading: "x"\n');
+    expect(findOrphanDataFiles(dir, loadConfig(dir), 'index', [])).toEqual([
+      { component: 'stale', file: join(dir, 'content', 'index', 'stale.yaml') },
+    ]);
   });
 
   it('reports no orphans when the data directory is missing', () => {
-    expect(findOrphanDataComponents(dir, 'nope', ['used'])).toEqual([]);
+    expect(findOrphanDataFiles(dir, loadConfig(dir), 'nope', ['used'])).toEqual([]);
   });
 });
 

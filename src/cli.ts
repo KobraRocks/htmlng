@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node
 import { join, relative, resolve, sep, extname } from 'node:path';
 import { createTwoFilesPatch } from 'diff';
 import { load, dump } from 'js-yaml';
-import { EngineError, type ErrorJson } from './types.js';
+import { EngineError, type EngineConfig, type ErrorJson } from './types.js';
 import { loadConfig } from './config.js';
 import { renderPage, renderComponent, previewComponent, loadDesignTokens, resolveTokens } from './renderer.js';
 import { assemblePageCSS } from './css.js';
@@ -21,7 +21,7 @@ import {
 import { validateComponent, validatePageStructure } from './validator.js';
 import { parseComponent, findComponents } from './component.js';
 import { parsePage, findPages } from './page.js';
-import { loadData, findOrphanDataComponents } from './data-file.js';
+import { loadData, findOrphanDataFiles } from './data-file.js';
 import { FORMAT_SPEC } from './format-spec.js';
 import { ERROR_CATALOG, explainError, allErrorCodes } from './error-catalog.js';
 import { escapeAttr } from './escape.js';
@@ -473,7 +473,7 @@ async function cmdValidate(args: string[]): Promise<number> {
   if (target === 'page' && args[1]) {
     scope = `page:${args[1]}`;
     collect(() => validatePageStructure(renderPage(ROOT, args[1], false, warnings)), pageFileOf(args[1]));
-    pushOrphanDataWarnings(warnings, args[1]);
+    pushOrphanDataWarnings(warnings, args[1], config);
   } else if (target === 'component' && args[1]) {
     scope = `component:${args[1]}`;
     const comp = parseComponent(join(ROOT, config.paths.components, `${args[1]}.component.html`));
@@ -485,7 +485,7 @@ async function cmdValidate(args: string[]): Promise<number> {
     // Validate every page and component, collecting all failures instead of stopping at the first
     for (const p of findPages(join(ROOT, config.paths.pages))) {
       collect(() => validatePageStructure(renderPage(ROOT, p, false, warnings)), pageFileOf(p));
-      pushOrphanDataWarnings(warnings, p);
+      pushOrphanDataWarnings(warnings, p, config);
     }
     for (const c of findComponents(join(ROOT, config.paths.components))) {
       collect(() => { warnings.push(...validateComponent(parseComponent(join(ROOT, config.paths.components, `${c}.component.html`)))); });
@@ -525,22 +525,20 @@ async function cmdValidate(args: string[]): Promise<number> {
 }
 
 /** Warn about data files whose component the page no longer references (issue 15.3). */
-function pushOrphanDataWarnings(warnings: EngineError[], pageName: string): void {
-  const config = loadConfig(ROOT);
+function pushOrphanDataWarnings(warnings: EngineError[], pageName: string, config: EngineConfig): void {
   let components: string[];
   try {
     components = parsePage(join(ROOT, config.paths.pages, `${pageName}.page.yaml`)).components;
   } catch {
     return; // page errors are reported by renderPage
   }
-  for (const orphan of findOrphanDataComponents(ROOT, pageName, components)) {
-    const file = join(config.paths.data, pageName, `${orphan}.yaml`);
+  for (const orphan of findOrphanDataFiles(ROOT, config, pageName, components)) {
     warnings.push(new EngineError(
-      `Data file "${file}" has no matching component on page "${pageName}"`,
-      file,
+      `Data file "${orphan.file}" has no matching component on page "${pageName}"`,
+      orphan.file,
       undefined,
       'WARNING',
-      `Delete the file, or add "${orphan}" back to the page's components.`,
+      `Delete the file, or add "${orphan.component}" back to the page's components.`,
       'DATA_FILE_ORPHAN',
     ));
   }
