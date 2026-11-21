@@ -5,6 +5,9 @@ Guidance for AI coding agents working in **this repository** (the htmlng engine 
 > If you are instead *using* htmlng to build a site, see `skill/SKILL.md`. If you are
 > working on the engine's source, this file is for you.
 
+Judgement calls a reviewer enforces are in [CODING_STANDARDS.md](CODING_STANDARDS.md);
+the `coding` skill is the fuller contract.
+
 ## What this is
 
 `htmlng` is a deterministic, component-based static HTML generator built for AI agents.
