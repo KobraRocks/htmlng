@@ -35,11 +35,12 @@ export function validateComponent(comp: Component): EngineError[] {
   }
 
   // Cross-validate template placeholders against schema.
-  // `scopedNames` = names that must exist in the schema (top-level, block names,
-  // and placeholders inside if/unless blocks). `usedNames` = every name in the
-  // template, so a field used only inside a list block still counts as used.
+  // `scopedNames` = names resolved against the component schema: top-level
+  // placeholders, block names, and placeholders inside if/unless blocks (which
+  // share the component scope). Names inside list blocks resolve against the
+  // list item, so they neither require a schema entry nor satisfy the unused
+  // check.
   const scopedNames = collectScopedNames(comp.template);
-  const usedNames = collectUsedNames(comp.template);
   const schemaFields = new Set(Object.keys(comp.schema));
 
   for (const field of scopedNames) {
@@ -64,7 +65,7 @@ export function validateComponent(comp: Component): EngineError[] {
   }
 
   for (const field of schemaFields) {
-    if (!usedNames.has(field)) {
+    if (!scopedNames.has(field)) {
       warnings.push(new EngineError(
         `Schema defines "${field}" but template does not use it. ` +
         `Remove from schema or add {{...${field}}} to the template.`,
@@ -137,13 +138,6 @@ function collectScopedNames(template: string): Set<string> {
       names.add(t.name);
     }
   }
-  return names;
-}
-
-/** Every placeholder name appearing anywhere in the template, in any scope. */
-function collectUsedNames(template: string): Set<string> {
-  const names = new Set<string>();
-  for (const t of tokenizePlaceholders(template)) names.add(t.name);
   return names;
 }
 

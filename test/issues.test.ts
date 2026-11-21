@@ -197,13 +197,14 @@ describe('issue 14 — field-level conditionals', () => {
     expect(componentCode('sec')).toBeUndefined();
   });
 
-  it('treats a field read inside a list block as used (no false unused warning)', () => {
+  it('warns when a schema field is only read as a list item field', () => {
     component('sec', {
       template: '<ul>{{#list:items}}<li>{{text:title}}</li>{{/list:items}}</ul>',
       schema: '{"items":{"type":"list"},"title":{"type":"text"}}',
     });
     const warnings = validateComponent(parseComponent(join(dir, 'components', 'sec.component.html')));
-    expect(warnings.map((w) => w.code)).not.toContain('SCHEMA_FIELD_UNUSED');
+    expect(warnings.map((w) => w.code)).toContain('SCHEMA_FIELD_UNUSED');
+    expect(warnings.find((w) => w.code === 'SCHEMA_FIELD_UNUSED')?.field).toBe('title');
   });
 });
 
