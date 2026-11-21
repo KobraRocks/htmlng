@@ -207,7 +207,8 @@ htmlng --json build            # {"ok":true,"pages":["index"],"warnings":[]}
 `validate` exits non-zero whenever any error is present and never reports success on
 failure. `htmlng explain <CODE>` covers every code the engine emits; array-data diagnostics
 name the failing element (`element [2] /body must be string`), stale data files warn
-`DATA_FILE_ORPHAN`, and duplicate warnings are reported once.
+`DATA_FILE_ORPHAN` from `build`, `render page`, and `validate`, and duplicate warnings
+are reported once.
 
 ## Docs
 

@@ -6,7 +6,7 @@ import { parseComponent } from '../src/component.js';
 import { validateComponent } from '../src/validator.js';
 import { EngineError } from '../src/types.js';
 import { FORMAT_SPEC } from '../src/format-spec.js';
-import { capture, outText, jsonOut, createProject, type FixtureProject } from './helpers/fixture.js';
+import { capture, outText, errText, jsonOut, createProject, type FixtureProject } from './helpers/fixture.js';
 
 let dir: string;
 let project: FixtureProject;
@@ -302,6 +302,65 @@ describe('issue 15.1 — element attribution', () => {
     expect(unused.map((w: { message: string }) => w.message)).toEqual([
       'Unused data key "extra" — not in component schema',
     ]);
+  });
+});
+
+describe('GitHub issue 12 — orphan data warnings outside validate', () => {
+  function orphanProject(): void {
+    project.component('sec');
+    project.page('index', ['sec']);
+    project.data('index', 'sec', 'heading: "H"\n');
+    project.data('index', 'stale', 'heading: "X"\n');
+  }
+
+  it('warns from build with the same message and help as validate', async () => {
+    orphanProject();
+
+    const validated = capture();
+    expect(await run(['validate', '--json'], validated.io)).toBe(0);
+    const fromValidate = jsonOut(validated).warnings.find(
+      (w: { code: string }) => w.code === 'DATA_FILE_ORPHAN',
+    );
+
+    const c = capture();
+    expect(await run(['build', '--json'], c.io)).toBe(0);
+    const fromBuild = jsonOut(c).warnings.find(
+      (w: { code: string }) => w.code === 'DATA_FILE_ORPHAN',
+    );
+
+    expect(fromBuild).toEqual(fromValidate);
+    expect(fromBuild.message).toContain('has no matching component on page "index"');
+    expect(fromBuild.help).toContain('"stale"');
+  });
+
+  it('warns from render page too', async () => {
+    orphanProject();
+
+    const c = capture();
+    expect(await run(['render', 'page', 'index'], c.io)).toBe(0);
+    expect(errText(c)).toContain('has no matching component on page "index"');
+  });
+
+  it('fails build only when strict mode treats warnings as errors', async () => {
+    orphanProject();
+
+    const nonStrict = capture();
+    expect(await run(['build'], nonStrict.io)).toBe(0);
+    expect(errText(nonStrict)).toContain('has no matching component on page "index"');
+
+    const strictRun = capture();
+    expect(await run(['build', '--strict'], strictRun.io)).toBe(1);
+    expect(errText(strictRun)).toContain('has no matching component on page "index"');
+  });
+
+  it('stays silent when every data file matches a page component', async () => {
+    project.component('sec');
+    project.page('index', ['sec']);
+    project.data('index', 'sec', 'heading: "H"\n');
+
+    const c = capture();
+    expect(await run(['build', '--json'], c.io)).toBe(0);
+    expect(jsonOut(c).warnings).toEqual([]);
   });
 });
 
