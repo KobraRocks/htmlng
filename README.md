@@ -14,10 +14,10 @@ htmlng build && htmlng serve --watch          # ship it, watch it reload
 ## Install
 
 ```bash
-git clone https://github.com/KobraRocks/htmlng.git
-cd htmlng
-./install.sh
+npm install -g htmlng
 ```
+
+Requires Node 22 or newer.
 
 ## Quick Start
 

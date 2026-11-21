@@ -16,9 +16,10 @@ Deterministic component-based HTML page generator. AI agents edit component temp
 
 ## Project location
 
-The htmlng is globally installed. Run commands from any project directory:
+Install the CLI once (Node 22 or newer), then run commands from any project directory:
 
 ```bash
+npm install -g htmlng
 htmlng <command>
 ```
 
