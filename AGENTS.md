@@ -132,29 +132,10 @@ htmlng --json validate
 
 Exit codes: `0` success, `1` any failure. Prefer `--json` over parsing prose.
 
-## Common errors → fix
+## Errors
 
-| Code / message | Fix |
-|---|---|
-| `SCHEMA_VALIDATION` `/x must be string` | Data file value has the wrong type (or `null`). Use `""` for empty. |
-| `... must have required property 'href'/'src'` | A `link` needs `href`+`label`; an `image` needs `src`. |
-| `TEMPLATE_PLACEHOLDER_UNKNOWN` | Template uses a placeholder not in the schema (typo, or schema not updated). |
-| `SCHEMA_FIELD_UNUSED` (warning) | Schema field not referenced by the template. |
-| `DATA_KEY_UNUSED` (warning) | Data file has a key the schema does not define. |
-| `TEXT_BLOCK_TAG` | Block tag in a `text` field — use `{{html:field}}`. |
-| `TEXT_TAG_DISALLOWED` / `TEXT_ATTR_DISALLOWED` | Inline tag/attribute outside the whitelist. |
-| `UNSAFE_URL` | `javascript:`/`vbscript:`/`file:`/`blob:` or a disallowed `data:` URL. Use http(s), mailto, tel, `#fragment`, or a relative path. |
-| `COMPONENT_NOT_FOUND` | Page references a missing component file. |
-| `COMPONENT_SECTIONS_MISSING` | Missing `---` separator (or the file uses CRLF incorrectly — now supported). |
-| `COMPONENT_PLACEHOLDER_IN_ATTRIBUTE` | `{{image}}`/`{{link}}`/`{{slot}}` used inside an attribute value — emit it as element content (`<span class="logo">{{image:logo}}</span>`). |
-| `COMPONENT_PLACEHOLDER_TYPE` (`nested item schemas are not supported`) | Flatten the schema and use a sequence data file to repeat the component, or `{{#list}}` with `{{text:field}}`. |
-| `PAGE_DUPLICATE_ID` | Two elements share an id — a raw `id` in a component template colliding with the engine wrapper, or a duplicated component. |
-| `DATA_FILE_ORPHAN` (warning) | `data/<page>/<component>.yaml` exists but the page no longer lists the component — delete the file or re-add the component. |
-| `SLOT_UNKNOWN_COMPONENT` | `{{slot:x}}` references a component that does not exist. |
-| `ALT_TEXT_REQUIRED` | `validation.requireAltText` is on and an image lacks `alt` (empty string is allowed). |
-| `CLI_UNKNOWN_FLAG` | Typo in a flag; unknown flags are rejected on purpose. |
-
-Run `htmlng explain <CODE>` (or read `src/error-catalog.ts`) for the full list.
+For the meaning and fix of every diagnostic code, run `htmlng explain <CODE>` (backed
+by `src/error-catalog.ts`). This file keeps no error catalogue of its own.
 
 ## Testing conventions
 
@@ -175,6 +156,7 @@ Run `htmlng explain <CODE>` (or read `src/error-catalog.ts`) for the full list.
 | New placeholder type | `src/types.ts`, `src/schema.ts`, `src/template.ts`, `src/format-spec.ts`, `src/component.ts` |
 | New error | `src/error-catalog.ts` + throw with that code |
 | Validation rule | `src/validator.ts` / `src/schema.ts` / `src/text-validator.ts` |
+| Diagnostics policy | `src/diagnostics.ts` (de-duplication, orphan warnings, page attribution) |
 | CSS scoping | `src/css.ts` |
 | Output shape | `src/renderer.ts` |
 
