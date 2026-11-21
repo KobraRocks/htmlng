@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { run, parseArgs } from '../src/cli.js';
+import { run } from '../src/cli.js';
+import { parseArgs } from '../src/cli-args.js';
 import { capture, outText, errText, createProject, type FixtureProject } from './helpers/fixture.js';
 
 let dir: string;

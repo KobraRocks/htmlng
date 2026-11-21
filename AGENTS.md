@@ -24,7 +24,17 @@ TypeScript CLI; there is no framework and no runtime magic.
 ```
 src/
   index.ts        entry point (version guard, EPIPE handling, exit code)
-  cli.ts          command dispatch, arg parsing, io sinks, buildPages()
+  cli.ts          entry point: argv dispatch, handler registry, help text
+  cli-args.ts     flag parsing and command argument helpers
+  cli-context.ts  per-invocation state, output sinks, JSON/error reporting
+  build-pages.ts  render + write build/ and refresh the cache
+  page-css.ts     page CSS: resolve tokens, scope component styles
+  watch-sources.ts  paths the watch loops observe
+  commands-authoring.ts  init/create/add/move/save
+  commands-inspect.ts    validate/diff/list/context/schema/explain
+  commands-render.ts     render/preview/css
+  commands-build.ts      build/watch
+  commands-serve.ts      serve (static files + hot reload)
   component.ts    parse components/<name>.component.html (template | css | schema)
   page.ts         parse pages/<name>.page.yaml
   data-file.ts    load data/<page>/<component>.yaml (object or array)
@@ -77,13 +87,14 @@ Rules:
   the module does and who calls it.
 - Relative imports may not traverse two or more parent directories (`../../`), in static,
   type, re-export, or dynamic form.
-- `src/cli.ts` is ratcheted at its recorded line count in `test/architecture-baseline.json`.
-  It may not grow, and a shrink requires lowering the baseline in the same change. Do not
-  raise or remove a baseline entry; extract code instead.
+- Files listed in `test/architecture-baseline.json` are ratcheted at their recorded line
+  counts. A listed file may not grow, and a shrink requires lowering the baseline in the
+  same change. Do not raise a baseline entry; extract code instead. #19's split of
+  `cli.ts` retired its entry, so the baseline is empty; the mechanism remains for any
+  future oversized module.
 
 The rationale is in
-[docs/adr/0001-architecture-guardrails.md](docs/adr/0001-architecture-guardrails.md); the
-`cli.ts` split is tracked in #19.
+[docs/adr/0001-architecture-guardrails.md](docs/adr/0001-architecture-guardrails.md).
 
 ## Golden path (the primary agent workflow)
 
@@ -169,7 +180,7 @@ by `src/error-catalog.ts`). This file keeps no error catalogue of its own.
 
 | Change | File(s) |
 |---|---|
-| New CLI command | a new single-purpose module for the handler, wired into `src/cli.ts` (`handlers` map + `HELP`), `README.md` table, tests; offset the `cli.ts` growth (see Mechanical limits) |
+| New CLI command | a new single-purpose module for the handler (or an existing `commands-*.ts` family), wired into `src/cli.ts` (`handlers` map + `HELP`), `README.md` table, tests |
 | New placeholder type | `src/types.ts`, `src/schema.ts`, `src/template.ts`, `src/format-spec.ts`, `src/component.ts` |
 | New error | `src/error-catalog.ts` + throw with that code |
 | Validation rule | `src/validator.ts` / `src/schema.ts` / `src/text-validator.ts` |

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { run, JSON_SCHEMA_VERSION } from '../src/cli.js';
+import { run } from '../src/cli.js';
+import { JSON_SCHEMA_VERSION } from '../src/cli-context.js';
 import { loadData } from '../src/data-file.js';
 import { renderPage } from '../src/renderer.js';
 import { capture, outText, errText, jsonOut, createProject, type FixtureProject } from './helpers/fixture.js';

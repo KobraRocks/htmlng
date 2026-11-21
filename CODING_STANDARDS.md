@@ -5,8 +5,9 @@ only the calls that are easy to get wrong here; mechanical checks live in
 `test/architecture.test.ts`, described in `AGENTS.md`.
 
 Raising or removing an entry in `test/architecture-baseline.json` is a
-review-blocking change: the test reads the file, not who edited it. The rationale
-is in `docs/adr/0001-architecture-guardrails.md`.
+review-blocking change: the test reads the file, not who edited it. #19's split
+of `src/cli.ts` retired that one entry, so the baseline is now empty; new entries
+follow the same rule. The rationale is in `docs/adr/0001-architecture-guardrails.md`.
 
 ## Module boundaries
 
