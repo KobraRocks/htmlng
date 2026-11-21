@@ -1,12 +1,12 @@
 # Coding standards
 
-The judgement calls a reviewer must enforce in this repository. The global
-`coding` skill is the authoritative contract for everything else — read it before
-changing code. This page records only the calls that are easy to get wrong here.
+The judgement calls a reviewer must enforce in this repository. This page records
+only the calls that are easy to get wrong here; mechanical checks live in
+`test/architecture.test.ts`, described in `AGENTS.md`.
 
-Mechanical limits (file size, relative import depth, module docblocks) belong to
-#14, whose architecture test will assert them; this page must not duplicate what a
-test can check.
+Raising or removing an entry in `test/architecture-baseline.json` is a
+review-blocking change: the test reads the file, not who edited it. The rationale
+is in `docs/adr/0001-architecture-guardrails.md`.
 
 ## Module boundaries
 

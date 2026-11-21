@@ -1,3 +1,9 @@
+/**
+ * Scopes component selectors, handles global escapes and at-rule passthrough,
+ * and dedupes per-page CSS.
+ *
+ * Called by `renderer.ts` and the CLI's `css` command.
+ */
 import type { Component } from './types.js';
 
 const PASSTHROUGH_AT_RULES = new Set(['@keyframes', '@font-face', '@page']);

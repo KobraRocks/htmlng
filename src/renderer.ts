@@ -1,3 +1,9 @@
+/**
+ * Assembles a full page from page, component, data, CSS, and scripts, and
+ * returns its warnings.
+ *
+ * Called by the CLI's render and build paths.
+ */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';

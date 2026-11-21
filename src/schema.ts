@@ -1,3 +1,8 @@
+/**
+ * Validates placeholder data against a component's JSON schema.
+ *
+ * Called by `validator.ts`.
+ */
 import type { PlaceholderSchema } from './types.js';
 
 export interface SchemaValidationResult {

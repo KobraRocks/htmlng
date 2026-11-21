@@ -1,3 +1,9 @@
+/**
+ * Parses `pages/<name>.page.yaml` into title, components, layout, head, and
+ * scripts.
+ *
+ * Called by `renderer.ts`, `hasher.ts`, `propagation.ts`, and the CLI.
+ */
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename } from 'node:path';
 import { load } from 'js-yaml';

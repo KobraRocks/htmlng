@@ -1,3 +1,8 @@
+/**
+ * Loads `engine.config.yaml` and supplies its defaults.
+ *
+ * Called by the CLI, `renderer.ts`, and the modules that read project config.
+ */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';

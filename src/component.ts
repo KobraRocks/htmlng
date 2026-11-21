@@ -1,3 +1,8 @@
+/**
+ * Parses `components/<name>.component.html` into template, CSS, and schema.
+ *
+ * Called by `renderer.ts`, `scaffold.ts`, and the CLI.
+ */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import type { Component, PlaceholderSchema } from './types.js';

@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+/**
+ * Binary entry point: version guard, EPIPE handling, and process exit code.
+ *
+ * The `htmlng` executable; it calls `cli.ts`.
+ */
+
 const nodeVersion = process.version;
 const major = parseInt(nodeVersion.slice(1).split('.')[0], 10);
 if (major < 22) {

@@ -1,3 +1,8 @@
+/**
+ * Whitelists inline HTML tags in `text` fields and rejects unsafe URLs.
+ *
+ * Called by `validator.ts`.
+ */
 import { EngineError } from './types.js';
 import { unsafeUrlReason } from './url-safety.js';
 

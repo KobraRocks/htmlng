@@ -1,3 +1,8 @@
+/**
+ * Command dispatch, argument parsing, I/O sinks, and the `buildPages` loop.
+ *
+ * Called by `index.ts` (the binary entry point) and by the CLI tests.
+ */
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join, relative, resolve, sep, extname } from 'node:path';
 import { createTwoFilesPatch } from 'diff';

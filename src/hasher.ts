@@ -1,3 +1,9 @@
+/**
+ * Reads and writes `.engine-cache.json` source hashes for staleness and
+ * changed-file tracking.
+ *
+ * Called by the CLI.
+ */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';

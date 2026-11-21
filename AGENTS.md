@@ -6,7 +6,7 @@ Guidance for AI coding agents working in **this repository** (the htmlng engine 
 > working on the engine's source, this file is for you.
 
 Judgement calls a reviewer enforces are in [CODING_STANDARDS.md](CODING_STANDARDS.md);
-the `coding` skill is the fuller contract.
+mechanical limits are enforced by `test/architecture.test.ts` and described below.
 
 ## What this is
 
@@ -48,7 +48,8 @@ examples/landing/ a runnable reference project (kept warning-free)
 examples/deck/    fixed 1280×720 slide deck: layout.wrapper, bodyClass, body-end
                   script, @page print rule — the known-good print-canvas reference
 specs/            functional spec + stack notes
-issues/           design notes, reviews, journey logs, ADRs
+issues/           design notes, reviews, journey logs
+docs/             agent workflow docs and ADR decisions
 ```
 
 ## Dev loop
@@ -67,6 +68,22 @@ Rules:
 - Keep `npm test` and `npm run typecheck` green. Run both before considering a change done.
 - Match the existing style: flat modules, no new dependencies without strong reason,
   explicit `EngineError` with a stable `code`, no frameworks.
+
+## Mechanical limits
+
+`test/architecture.test.ts` enforces three rules over `src/**/*.ts`; `npm test` runs it.
+
+- Every module starts with a `/** ... */` docblock, after an optional shebang. State what
+  the module does and who calls it.
+- Relative imports may not traverse two or more parent directories (`../../`), in static,
+  type, re-export, or dynamic form.
+- `src/cli.ts` is ratcheted at its recorded line count in `test/architecture-baseline.json`.
+  It may not grow, and a shrink requires lowering the baseline in the same change. Do not
+  raise or remove a baseline entry; extract code instead.
+
+The rationale is in
+[docs/adr/0001-architecture-guardrails.md](docs/adr/0001-architecture-guardrails.md); the
+`cli.ts` split is tracked in #19.
 
 ## Golden path (the primary agent workflow)
 
@@ -152,7 +169,7 @@ by `src/error-catalog.ts`). This file keeps no error catalogue of its own.
 
 | Change | File(s) |
 |---|---|
-| New CLI command | `src/cli.ts` (handler + `handlers` map + `HELP`), `README.md` table, tests |
+| New CLI command | a new single-purpose module for the handler, wired into `src/cli.ts` (`handlers` map + `HELP`), `README.md` table, tests; offset the `cli.ts` growth (see Mechanical limits) |
 | New placeholder type | `src/types.ts`, `src/schema.ts`, `src/template.ts`, `src/format-spec.ts`, `src/component.ts` |
 | New error | `src/error-catalog.ts` + throw with that code |
 | Validation rule | `src/validator.ts` / `src/schema.ts` / `src/text-validator.ts` |

@@ -1,3 +1,8 @@
+/**
+ * Machine-readable file-format and placeholder spec emitted by `htmlng schema`.
+ *
+ * Called by the CLI.
+ */
 import { PLACEHOLDER_TYPES } from './types.js';
 
 /**

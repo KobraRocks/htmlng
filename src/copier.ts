@@ -1,3 +1,8 @@
+/**
+ * Copies `assets/` into `build/assets/`.
+ *
+ * Called by the CLI's build command.
+ */
 import { cpSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './config.js';

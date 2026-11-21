@@ -1,3 +1,8 @@
+/**
+ * Creates project files from templates: `init`, `create`, `save`, and presets.
+ *
+ * Called by the CLI.
+ */
 import { writeFileSync, readFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './config.js';

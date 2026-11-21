@@ -1,3 +1,8 @@
+/**
+ * Resolves placeholders, lists, booleans, and slots into component HTML.
+ *
+ * Called by `renderer.ts`.
+ */
 import type { Component, PlaceholderValue, ImageValue, LinkValue, SlotValue } from './types.js';
 import { EngineError } from './types.js';
 import { escapeHtml, escapeAttr } from './escape.js';

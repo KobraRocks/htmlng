@@ -1,3 +1,8 @@
+/**
+ * Loads `data/<page>/<component>.yaml` as one instance or a repeated sequence.
+ *
+ * Called by `renderer.ts`, `diagnostics.ts`, and the CLI.
+ */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';

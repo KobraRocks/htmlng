@@ -1,3 +1,8 @@
+/**
+ * Validates component/data shape, text fields, URLs, and page structure.
+ *
+ * Called by `renderer.ts` and the CLI.
+ */
 import type { Component } from './types.js';
 import { EngineError } from './types.js';
 import { validateText } from './text-validator.js';

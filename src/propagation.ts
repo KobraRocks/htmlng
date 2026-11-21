@@ -1,3 +1,8 @@
+/**
+ * Maps a changed source file to the pages that need rebuilding.
+ *
+ * Called by the CLI watch and serve loops.
+ */
 import { join } from 'node:path';
 import { loadConfig } from './config.js';
 import { findPages, parsePage } from './page.js';

@@ -1,3 +1,8 @@
+/**
+ * HTML text and attribute escaping.
+ *
+ * Called by `template.ts`, `renderer.ts`, and the CLI.
+ */
 export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

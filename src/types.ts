@@ -1,4 +1,9 @@
-// ── HTML Engine — All type definitions ──────────────────
+/**
+ * Shared engine types: config, components, pages, placeholders, cache, and
+ * diagnostics.
+ *
+ * Imported by nearly every `src/` module.
+ */
 
 import type { ErrorCode } from './error-catalog.js';
 
