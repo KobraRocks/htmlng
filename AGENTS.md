@@ -156,3 +156,17 @@ Run `htmlng explain <CODE>` (or read `src/error-catalog.ts`) for the full list.
 | Validation rule | `src/validator.ts` / `src/schema.ts` / `src/text-validator.ts` |
 | CSS scoping | `src/css.ts` |
 | Output shape | `src/renderer.ts` |
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues in `KobraRocks/htmlng`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles use the default label strings: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
