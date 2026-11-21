@@ -1,0 +1,5 @@
+heading: "Per-slide layout, one container"
+body: "<p>Each page declares <code>layout.bodyClass</code>, so CSS can target one slide without an out-of-engine build step.</p>"
+points:
+  - "body.slide-2 .points { grid-template-columns: 1fr } overrides this slide"
+  - "the whole deck edits as isolated components and YAML"

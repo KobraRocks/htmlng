@@ -1,9 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { COMMAND_NAMES, HELP } from '../src/cli.js';
 
 const ROOT = join(import.meta.dirname, '..');
+
+/** Markdown a reader must be able to follow anywhere, not just on the author's machine. */
+const DOC_FILES = [
+  'README.md',
+  ...readdirSync(join(ROOT, 'skill'))
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => `skill/${f}`),
+  'AGENTS.md'
+];
+
+/** A home directory path (`/home/<user>/…` or `~/…`) never resolves for another reader. */
+const MACHINE_PATH = /\/home\/[A-Za-z0-9._-]+\/|(?:^|\s)~\/[A-Za-z0-9._-]+\//;
+
+function machinePathHits(relPath: string): string[] {
+  const lines = readFileSync(join(ROOT, relPath), 'utf-8').split('\n');
+  return lines.flatMap((line, i) => (MACHINE_PATH.test(line) ? [`${relPath}:${i + 1}: ${line.trim()}`] : []));
+}
 
 /** Command tokens from README's command table: `| `htmlng <cmd> ...` |` */
 function readmeTableCommands(): string[] {
@@ -56,5 +73,10 @@ describe('docs conformance', () => {
   it('AGENTS.md golden path only references real commands', () => {
     const unknown = fencedCommands('AGENTS.md').filter((c) => !COMMAND_NAMES.includes(c));
     expect(unknown, `AGENTS.md references unknown commands: ${unknown.join(', ')}`).toEqual([]);
+  });
+
+  it('docs contain no machine-specific absolute paths', () => {
+    const hits = DOC_FILES.flatMap(machinePathHits);
+    expect(hits, `paths that only resolve on one machine:\n${hits.join('\n')}`).toEqual([]);
   });
 });

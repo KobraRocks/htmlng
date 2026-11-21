@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
-import type { Component, PlaceholderValue, ImageValue } from './types.js';
+import type { Component, PlaceholderValue, ImageValue, PageLayout } from './types.js';
 import { EngineError } from './types.js';
 import { escapeHtml, escapeAttr } from './escape.js';
 import { loadConfig } from './config.js';
@@ -76,7 +76,7 @@ export function renderPage(
       // Array data — render one section per array element
       for (let i = 0; i < data.length; i++) {
         const item = data[i] as Record<string, PlaceholderValue>;
-        warnings.push(...validatePageData(comp, item, dataPath, { requireAltText, components: allComponents }));
+        warnings.push(...validatePageData(comp, item, dataPath, { requireAltText, components: allComponents, itemIndex: i }));
         const innerHTML = renderTemplate(comp.template, item, allComponents);
         renderedComponents.push({ name, html: innerHTML, index: i });
       }
@@ -124,43 +124,53 @@ export function renderPage(
     head += `  <link rel="stylesheet" href="css/${pageName}.css">\n`;
   }
 
-  // Scripts in head
+  // Scripts in head. A head script runs before <body> is parsed, so `defer`
+  // is added unless the author explicitly chose defer/async.
   if (page.scripts) {
     for (const s of page.scripts) {
       if (s.head) {
-        head += scriptTag(s);
+        head += scriptTag({ ...s, defer: s.defer ?? !s.async });
       }
     }
   }
 
-  // Body
-  let body = '';
+  // Body — the wrapper element role comes from the component name, never its
+  // position, so a shell component named "deck" cannot silently become <footer>.
+  let content = '';
   for (let i = 0; i < renderedComponents.length; i++) {
     const { name, html, index } = renderedComponents[i];
     const idSuffix = index !== undefined ? `-${index}` : '';
     const id = `id="${escapeAttr(name)}${idSuffix}"`;
     const cls = `class="${escapeAttr(name)}"`;
+    const inner = indent(html, 4);
 
-    if (i === 0) {
-      body += `  <header ${id} ${cls}>\n${indent(html, 4)}\n  </header>\n`;
-    } else if (i === renderedComponents.length - 1 && name === 'footer') {
-      body += `  <footer ${id} ${cls}>\n${indent(html, 4)}\n  </footer>\n`;
+    if (name === 'header') {
+      content += `  <header ${id} ${cls}>\n${inner}\n  </header>\n`;
+    } else if (name === 'footer') {
+      content += `  <footer ${id} ${cls}>\n${inner}\n  </footer>\n`;
     } else {
-      body += `  <section ${id} ${cls}>\n${indent(html, 4)}\n  </section>\n`;
+      content += `  <section ${id} ${cls}>\n${inner}\n  </section>\n`;
     }
   }
 
   // Default footer only when the page defines no `footer` component at all.
-  // (If a `footer` component exists but is not last, it is wrapped by position —
-  // emitting a second `id="footer"` would fail the duplicate-id check.)
   const hasFooterComponent = renderedComponents.some((r) => r.name === 'footer');
   if (!hasFooterComponent) {
     const year = new Date().getFullYear();
     const projectName = config.project.name || 'Untitled';
-    body += `  <footer id="footer" class="footer">\n    <p>&copy; ${year} ${escapeHtml(projectName)}.</p>\n  </footer>\n`;
+    content += `  <footer id="footer" class="footer">\n    <p>&copy; ${year} ${escapeHtml(projectName)}.</p>\n  </footer>\n`;
   }
 
-  // Body scripts
+  // Optional page-level container (issue 09): one element that owns flex/grid
+  // layout, a fixed canvas, or a print size.
+  let body: string;
+  if (page.layout?.wrapper === true) {
+    body = `  <div id="page" class="page">\n${indent(content.replace(/\n$/, ''), 2)}\n  </div>\n`;
+  } else {
+    body = content;
+  }
+
+  // Body scripts are emitted after the content so the DOM exists when they run.
   let bodyScripts = '';
   if (page.scripts) {
     for (const s of page.scripts) {
@@ -170,12 +180,22 @@ export function renderPage(
     }
   }
 
-  const html = `<!DOCTYPE html>\n<html lang="${escapeAttr(lang)}">\n<head>\n${head}</head>\n<body>\n${body}${bodyScripts}</body>\n</html>`;
+  const html = `<!DOCTYPE html>\n<html lang="${escapeAttr(lang)}">\n<head>\n${head}</head>\n<body${bodyAttributes(pageName, page.layout)}>\n${body}${bodyScripts}</body>\n</html>`;
 
   // Validate structure
   validatePageStructure(html);
 
   return html;
+}
+
+/**
+ * `<body>` identity: the page name plus any `layout.bodyClass`, so a page's CSS
+ * can target exactly one page (`body.<page> …`) without a post-build script.
+ */
+function bodyAttributes(pageName: string, layout?: PageLayout): string {
+  const extra = layout?.bodyClass ? layout.bodyClass.split(/\s+/).filter(Boolean) : [];
+  const classes = [pageName, ...extra];
+  return ` class="${escapeAttr(classes.join(' '))}" data-page="${escapeAttr(pageName)}"`;
 }
 
 /**
@@ -209,7 +229,7 @@ export function renderComponent(
     const parts: string[] = [];
     for (let i = 0; i < data.length; i++) {
       const item = data[i] as Record<string, PlaceholderValue>;
-      warnings.push(...validatePageData(comp, item, dataPath, { requireAltText, components: allComponents }));
+      warnings.push(...validatePageData(comp, item, dataPath, { requireAltText, components: allComponents, itemIndex: i }));
       const innerHTML = renderTemplate(comp.template, item, allComponents);
       if (data.length > 1) {
         parts.push(`=== ITEM ${i} ===\n${innerHTML}`);

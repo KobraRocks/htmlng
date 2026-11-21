@@ -1,5 +1,5 @@
 ---
-name: html-engine
+name: htmlng
 description: >
   REQUIRED for building and editing static HTML pages via the component-based HTML htmlng CLI.
   Use when the user asks to create, edit, or render web pages, landing pages, marketing sites,
@@ -22,10 +22,7 @@ The htmlng is globally installed. Run commands from any project directory:
 htmlng <command>
 ```
 
-To update after code changes:
-```bash
-cd ~/Pi/projects/html-engine && npx tsc
-```
+If the `htmlng` tool is unavailable, run the engine directly: `node <engine-checkout>/dist/index.js <command>` with the project as cwd, where `<engine-checkout>` is the htmlng checkout that contains `dist/`.
 
 ## Commands
 
@@ -180,6 +177,17 @@ All share the component's CSS class (`class="report-section"`).
 - The component appears once in the page YAML — the engine handles repetition
 - Use `htmlng render component <name> --page <page>` to inspect all rendered items
 
+#### Array data file vs `{{#list:...}}`
+
+These are different tools — pick by *what* repeats:
+
+| Goal | Use | Schema shape |
+|------|-----|--------------|
+| Repeat the **whole component** N times | a YAML **sequence** data file | Flat: the placeholder fields sit at the top level of each element. One wrapper per element, ids `<name>-0`, `<name>-1`, … (a single-element array also gets `-0`). |
+| Repeat a **block inside one instance** | `{{#list:name}}...{{/list:name}}` | A `list` field in the component schema. Item fields are read with `{{text:field}}` (or `{{text:this}}` for scalars) and are **not** component schema fields. |
+
+A nested `"items": {"type": "list", "item": {"title": {...}}}` item schema is **not supported** — it fails with `COMPONENT_PLACEHOLDER_TYPE` telling you to flatten the schema or switch to a sequence data file.
+
 ### Creating a new component
 
 **Before writing any CSS**, inspect what already exists:
@@ -233,6 +241,19 @@ All share the component's CSS class (`class="report-section"`).
 
 **Inspecting CSS**: Use `htmlng css <page>` to see the full assembled CSS (global + all component styles) for any page. This reveals duplication and helps you decide whether a style belongs in `global.css` or should be a shared preset.
 
+**Scoping escape hatch.** Component CSS is prefixed with `.<name>`, except:
+
+- selectors whose first compound starts with `html`, `body`, `:root`, or `:host` are emitted **unscoped** (a `.name ` prefix could never match them);
+- any selector containing `:global(...)` is emitted unscoped with `:global(...)` unwrapped (a whole-selector opt-out);
+- `@page` passes through verbatim.
+
+```css
+/* component CSS input            → assembled output */
+body { display: flex; }           /* → body { display: flex; } */
+:global(.leaflet-container) { z-index: 1; } /* → .leaflet-container { z-index: 1; } */
+h1 { font-size: 3rem; }           /* → .hero h1 { font-size: 3rem; } */
+```
+
 ### Changing global styles
 
 ```
@@ -247,11 +268,24 @@ All share the component's CSS class (`class="report-section"`).
 |------|----------------|------------|-------|
 | `text` | `{{text:name}}` | `string` | Allows inline tags: `<strong>`, `<em>`, `<a href>`, `<code>`, `<br>`, etc. Other tags rejected. |
 | `html` | `{{html:name}}` | `string` | Raw HTML, unsanitized. Use for blog posts, complex markup. |
-| `image` | `{{image:name}}` | `{src, alt, width?, height?, loading?}` | Emits `<img>` element |
-| `link` | `{{link:name}}` | `{href, label}` | Emits `<a>` element |
-| `list` | `{{#list:name}}...{{/list:name}}` | `array` | Iterates array. Objects → `{{text:field}}`. Scalars → `{{text:this}}`. |
-| `bool` | `{{#bool:name}}...{{/bool:name}}` | `boolean` | Renders block only if true |
-| `slot` | `{{slot:name}}` | `{component, data?}` | Embeds another component inline |
+| `image` | `{{image:name}}` | `{src, alt, width?, height?, loading?, class?}` | Emits a whole `<img>` element — content only, never an attribute value |
+| `link` | `{{link:name}}` | `{href, label, class?}` | Emits a whole `<a>` element — content only, never an attribute value |
+| `list` | `{{#list:name}}...{{/list:name}}` | `array` | Iterates an array inside ONE instance. Objects → `{{text:field}}`. Scalars → `{{text:this}}`. Item fields are not schema fields. |
+| `bool` | `{{#bool:name}}...{{/bool:name}}` | `boolean` | Renders block only if the value is exactly `true` |
+| `if` | `{{#if:name}}...{{/if:name}}` | `any` | Renders block when truthy: `true`, non-blank string, non-empty array/object, non-zero number. Shares the component data scope. |
+| `unless` | `{{#unless:name}}...{{/unless:name}}` | `any` | Inverse of `if` |
+| `slot` | `{{slot:name}}` | `{component, data?}` | Embeds another component inline; emits an element — content only, never an attribute value |
+
+`if`/`unless` replace the old "pass a class name through data" and "delete the schema field to silence a warning" workarounds: keep the field in the schema, guard it in the template. They are block guards over an existing field, not schema entry types — declare the field with its real type (`text`, `bool`, `list`, …).
+
+**Element placeholders are content.** `{{image:x}}`, `{{link:x}}`, and `{{slot:x}}` emit a complete element, so `src="{{image:logo}}"` is a `COMPONENT_PLACEHOLDER_IN_ATTRIBUTE` error. Put them in the element body and size the box with CSS:
+
+```html
+<span class="logo">{{image:logo}}</span>
+```
+```css
+.logo img { height: 2rem; width: auto; }
+```
 
 ## Text field HTML whitelist
 
@@ -277,6 +311,29 @@ Only `href` is allowed on `<a>`. No other attributes on any tag. Block-level tag
 3. Save output to .html file and open in browser
 4. Or: htmlng preview component <name> --with-css (sample data)
 ```
+
+## Page identity, layout, and scripts
+
+The engine always emits `<body class="<page>" data-page="<page>">`, so page CSS can scope to one page with `body.<page> …` — no post-build script. Optional page YAML:
+
+```yaml
+layout:
+  bodyClass: "deck slide-1"   # appended after the page name: class="<page> deck slide-1"
+  wrapper: true               # wrap every component wrapper in <div id="page" class="page">
+scripts:
+  - src: "assets/js/nav.js"        # default: emitted at the END of <body>, DOM available
+  - src: "assets/js/analytics.js"
+    head: true                     # moves to <head> and adds defer unless defer/async is set
+```
+
+- `layout.wrapper: true` gives you one container to own flex/grid layout, a fixed canvas, or a print size. The validator allows that `<div id="page">` plus page `<script>` tags as direct body children.
+- Page names are **naturally sorted** (`slide-1`, `slide-2`, `slide-10`) by `htmlng list pages`, `htmlng context`, and build-all.
+
+## Print and fixed-canvas output
+
+`vh`/`vw` are **not print-safe**: Chromium resolves them against the print viewport, so a fixed slide reflows. For print/PDF use `layout.wrapper: true` with fixed `px` sizes, and add `@page { size: 1280px 720px; margin: 0 }` to `global.css`. There is deliberately no built-in `--pdf` export — it would require adding a headless-browser dependency.
+
+`examples/deck/` in the htmlng repo is the known-good reference for this pattern: two fixed 1280×720 slides with `layout.wrapper: true`, `layout.bodyClass: "deck"`, a body-end `assets/deck-nav.js` script, and the `@page` rule in `global.css`.
 
 ## Project structure
 
@@ -304,12 +361,19 @@ Common errors:
 - `Image "x" is missing alt text` — add `alt:` (empty string is allowed), or set `validation.requireAltText: false`
 - `Component not found` — component name typo or file missing
 
-Run `htmlng explain <CODE>` for the full catalog (codes appear in `--json` output).
+Diagnostics:
+- Array-data schema errors name the failing element: `element [2] /body must be ...`.
+- `validate` warns `DATA_FILE_ORPHAN` for a `data/<page>/<component>.yaml` whose component the page no longer lists.
+- Warnings are de-duplicated, so each problem is reported once.
+- `htmlng render component` always prints `=== STATUS: rendered` — read-only render is always fresh and never claims `cached`.
+
+Run `htmlng explain <CODE>` for the full catalog (codes appear in `--json` output); `explain` covers every code the engine emits.
 
 ## Important constraints
 
 - **Never edit `build/` directly** — it's regenerated from source on every `htmlng build`
-- **Component CSS is auto-scoped** — write `h1 { ... }` and the htmlng emits `.component-name h1 { ... }`
+- **Wrapper tags follow the component NAME, not page position** — a component named `header` → `<header id="header" class="header">`, `footer` → `<footer ...>`, every other component → `<section id="<name>" class="<name>">`. Array data elements get `id="<name>-<index>"`. A default `<footer id="footer">` is appended only when no component named `footer` exists.
+- **Component CSS is auto-scoped** — write `h1 { ... }` and the htmlng emits `.hero h1 { ... }`; selectors starting with `html`/`body`/`:root`/`:host` and `:global(...)` selectors are emitted unscoped (see the escape hatch above)
 - **Global CSS sets baseline** — `global.css` defines typography, colors, spacing for all semantic elements
-- **Page order determines wrapping** — first component → `<header>`, last (if named `footer`) → `<footer>`, others → `<section id="...">`
 - **Component files are three sections** separated by `---`: template, CSS (optional), JSON schema
+- **`paths.build` is a single path segment** (no `/` or `..`) and is wiped when building all pages

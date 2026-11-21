@@ -1,9 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
 import type { PlaceholderValue } from './types.js';
 import { EngineError } from './types.js';
 import { loadConfig } from './config.js';
+
+const DATA_SUFFIX = '.yaml';
 
 /**
  * Load data/<pageName>/<componentName>.yaml (respecting config.paths.data).
@@ -69,4 +71,31 @@ export function loadData(
       'DATA_PARSE',
     );
   }
+}
+
+/**
+ * Data files under data/<pageName>/ whose component is not referenced by the page.
+ * Used by `validate` to report DATA_FILE_ORPHAN (a stale file that would
+ * silently be picked up if the component were re-added).
+ *
+ * Returns the component names (file base names without the extension) sorted
+ * deterministically; `[]` when the page's data directory does not exist.
+ */
+export function findOrphanDataComponents(rootDir: string, pageName: string, componentNames: string[]): string[] {
+  const config = loadConfig(rootDir);
+  const dir = join(rootDir, config.paths.data, pageName);
+
+  let files: string[];
+  try {
+    files = readdirSync(dir);
+  } catch {
+    return [];
+  }
+
+  const referenced = new Set(componentNames);
+  return files
+    .filter((f) => f.endsWith(DATA_SUFFIX))
+    .map((f) => f.slice(0, -DATA_SUFFIX.length))
+    .filter((name) => !referenced.has(name))
+    .sort();
 }

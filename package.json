@@ -1,5 +1,5 @@
 {
-  "name": "html-engine",
+  "name": "htmlng",
   "version": "1.1.0",
   "description": "Deterministic, component-based static HTML generator built for AI agents.",
   "license": "MIT",

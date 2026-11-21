@@ -1,0 +1,14 @@
+title: "Deck — Slide 1"
+description: "A fixed 1280×720 slide assembled by htmlng, print-safe and keyboard-navigable."
+layout:
+  wrapper: true
+  bodyClass: "deck"
+head:
+  meta:
+    - name: "deck-total"
+      content: "2"
+scripts:
+  - src: "assets/deck-nav.js"
+components:
+  - slide
+  - footer

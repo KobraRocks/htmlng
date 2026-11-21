@@ -5,13 +5,19 @@ import { join } from 'node:path';
 const FIXTURES = join(import.meta.dirname, 'fixtures');
 
 describe('renderPage', () => {
-  it('renders a full HTML page with header/section/footer', () => {
+  it('renders a full HTML page with name-based semantic wrappers', () => {
     const html = renderPage(FIXTURES, 'index');
     expect(html).toContain('<!DOCTYPE html>');
-    expect(html).toContain('<header id="hero" class="hero">');
+    // Wrapper role comes from the component name, not its position.
+    expect(html).toContain('<section id="hero" class="hero">');
     expect(html).toContain('<section id="features" class="features">');
     expect(html).toContain('<footer id="footer" class="footer">');
     expect(html).toContain('<h1>Hello World</h1>');
+  });
+
+  it('gives <body> a page identity', () => {
+    const html = renderPage(FIXTURES, 'index');
+    expect(html).toContain('<body class="index" data-page="index">');
   });
 
   it('includes head elements', () => {

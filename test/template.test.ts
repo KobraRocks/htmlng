@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderTemplate } from '../src/template.js';
-import type { Component } from '../src/types.js';
+import type { Component, PlaceholderValue } from '../src/types.js';
 import { EngineError } from '../src/types.js';
 
 // Minimal component map for slot tests
@@ -89,6 +89,79 @@ describe('renderTemplate — blocks', () => {
   it('throws on unclosed block', () => {
     expect(() => renderTemplate('{{#list:items}}unclosed', { items: [] }, emptyMap))
       .toThrow(EngineError);
+  });
+});
+
+describe('renderTemplate — field conditionals', () => {
+  const renderWith = (template: string, data: Record<string, unknown>): string =>
+    renderTemplate(template, data as Record<string, PlaceholderValue>, emptyMap);
+
+  it.each([
+    ['boolean true', true],
+    ['non-empty string', 'yes'],
+    ['non-empty array', ['a']],
+    ['plain object', { a: 1 }],
+  ])('renders {{#if:x}} body for %s', (_label, value) => {
+    expect(renderWith('{{#if:x}}yes{{/if:x}}', { x: value })).toBe('yes');
+  });
+
+  it.each([
+    ['boolean false', false],
+    ['empty string', ''],
+    ['whitespace-only string', '   '],
+    ['empty array', []],
+    ['empty object', {}],
+    ['zero', 0],
+    ['NaN', Number.NaN],
+    ['null', null],
+    ['undefined', undefined],
+  ])('renders nothing for {{#if:x}} with %s', (_label, value) => {
+    expect(renderWith('{{#if:x}}yes{{/if:x}}', { x: value })).toBe('');
+  });
+
+  it.each([
+    ['empty string', '', 'no'],
+    ['zero', 0, 'no'],
+    ['true', true, ''],
+    ['non-empty string', 'v', ''],
+  ])('{{#unless:x}} inverts %s', (_label, value, expected) => {
+    expect(renderWith('{{#unless:x}}no{{/unless:x}}', { x: value })).toBe(expected);
+  });
+
+  it('resolves placeholders inside {{#if:x}} against the component data', () => {
+    const result = renderWith('{{#if:show}}<h1>{{text:heading}}</h1>{{/if:show}}', {
+      show: true,
+      heading: 'Hi',
+    });
+    expect(result).toBe('<h1>Hi</h1>');
+  });
+
+  it('handles nested if blocks, including mixed block types', () => {
+    expect(renderWith('{{#if:a}}{{#if:b}}x{{/if:b}}{{/if:a}}', { a: true, b: true })).toBe('x');
+    expect(renderWith('{{#if:a}}{{#if:b}}x{{/if:b}}{{/if:a}}', { a: true, b: false })).toBe('');
+    expect(renderWith('{{#list:items}}{{#if:on}}{{text:name}}{{/if:on}}{{/list:items}}', {
+      items: [{ name: 'A', on: true }, { name: 'B', on: false }],
+    })).toBe('A');
+  });
+
+  it('throws TEMPLATE_UNKNOWN_BLOCK on an unrecognized block type', () => {
+    try {
+      renderWith('{{#while:x}}a{{/while:x}}', { x: true });
+      expect.unreachable('expected TEMPLATE_UNKNOWN_BLOCK');
+    } catch (err) {
+      expect(err).toBeInstanceOf(EngineError);
+      expect((err as EngineError).code).toBe('TEMPLATE_UNKNOWN_BLOCK');
+    }
+  });
+
+  it('throws TEMPLATE_UNCLOSED_BLOCK on an unclosed {{#if:x}}', () => {
+    try {
+      renderWith('{{#if:x}}unclosed', { x: true });
+      expect.unreachable('expected TEMPLATE_UNCLOSED_BLOCK');
+    } catch (err) {
+      expect(err).toBeInstanceOf(EngineError);
+      expect((err as EngineError).code).toBe('TEMPLATE_UNCLOSED_BLOCK');
+    }
   });
 });
 

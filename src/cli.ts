@@ -21,7 +21,7 @@ import {
 import { validateComponent, validatePageStructure } from './validator.js';
 import { parseComponent, findComponents } from './component.js';
 import { parsePage, findPages } from './page.js';
-import { loadData } from './data-file.js';
+import { loadData, findOrphanDataComponents } from './data-file.js';
 import { FORMAT_SPEC } from './format-spec.js';
 import { ERROR_CATALOG, explainError, allErrorCodes } from './error-catalog.js';
 import { escapeAttr } from './escape.js';
@@ -81,8 +81,9 @@ function emitJsonError(code: string, message: string, help?: string): void {
 
 /** Print collected warnings; return 1 when `--strict`/config strict is active. */
 function reportWarnings(warnings: EngineError[]): number {
-  for (const w of warnings) io.err(w.format() + '\n');
-  return strict && warnings.length > 0 ? 1 : 0;
+  const unique = dedupeDiagnostics(warnings);
+  for (const w of unique) io.err(w.format() + '\n');
+  return strict && unique.length > 0 ? 1 : 0;
 }
 
 // ── Argument parsing ────────────────────────────────────
@@ -369,23 +370,23 @@ async function cmdRender(args: string[]): Promise<number> {
       return reportWarnings(warnings);
     }
 
-    const stale = isStale(ROOT, page);
     const changed = getChangedSources(ROOT, page);
-    const status = stale ? `rendered (changed: ${changed.join(', ') || 'unknown'})` : 'cached (no source changes)';
 
     if (jsonMode) {
       emit({
         ok: true,
         component: name,
         page,
-        status: stale ? 'rendered' : 'cached',
+        // A render always produces fresh output; `changed` reports cache drift.
+        status: 'rendered',
         changed,
         withCSS,
         html: withCSS ? wrapWithCSS(ROOT, name, html) : html,
         warnings: warnings.map((w) => w.toJSON()),
       });
     } else {
-      io.out(`=== COMPONENT: ${name}\n=== PAGE: ${page}\n=== STATUS: ${status}\n\n${html}\n`);
+      // Read-only render: always fresh, so never claim "cached" (issue 15.5).
+      io.out(`=== COMPONENT: ${name}\n=== PAGE: ${page}\n=== STATUS: rendered\n\n${html}\n`);
     }
     return reportWarnings(warnings);
   }
@@ -398,14 +399,13 @@ async function cmdRender(args: string[]): Promise<number> {
     const html = renderPage(ROOT, name, config.build.inlineCSS, warnings);
     const stale = isStale(ROOT, name);
     const changed = getChangedSources(ROOT, name);
-    const status = stale ? `rendered (changed: ${changed.join(', ') || 'unknown'})` : 'cached (no source changes)';
     const page = parsePage(join(ROOT, config.paths.pages, `${name}.page.yaml`));
 
     if (jsonMode) {
       emit({
         ok: true,
         page: name,
-        status: stale ? 'rendered' : 'cached',
+        status: 'rendered',
         changed,
         components: page.components,
         css: config.build.inlineCSS ? 'inline' : `css/${name}.css`,
@@ -420,7 +420,7 @@ async function cmdRender(args: string[]): Promise<number> {
         ? `inline <style> (global + ${page.components.length} components)`
         : `css/${name}.css (global + ${page.components.length} components)`;
       io.out(
-        `=== PAGE: ${name}\n=== STATUS: ${status}\n` +
+        `=== PAGE: ${name}\n=== SOURCES: ${stale ? `changed: ${changed.join(', ') || 'unknown'}` : 'unchanged since last build'}\n` +
         `=== COMPONENTS: ${page.components.join(', ')}\n` +
         `=== CSS: ${cssRef}\n\n`
       );
@@ -455,19 +455,25 @@ async function cmdValidate(args: string[]): Promise<number> {
   const warnings: EngineError[] = [];
   const config = loadConfig(ROOT);
 
-  const collect = (fn: () => void) => {
+  // Structural page errors carry no file; attribute them to the page file so
+  // two pages failing the same way are not collapsed by de-duplication.
+  const collect = (fn: () => void, pageFile?: string) => {
     try { fn(); }
     catch (e) {
-      if (e instanceof EngineError) errors.push(e);
-      else throw e;
+      if (!(e instanceof EngineError)) throw e;
+      errors.push(pageFile && !e.file
+        ? new EngineError(e.message, pageFile, e.field, e.level, e.help, e.code)
+        : e);
     }
   };
+  const pageFileOf = (page: string) => join(config.paths.pages, `${page}.page.yaml`);
 
   const target = args[0];
   let scope = 'all';
   if (target === 'page' && args[1]) {
     scope = `page:${args[1]}`;
-    collect(() => validatePageStructure(renderPage(ROOT, args[1], false, warnings)));
+    collect(() => validatePageStructure(renderPage(ROOT, args[1], false, warnings)), pageFileOf(args[1]));
+    pushOrphanDataWarnings(warnings, args[1]);
   } else if (target === 'component' && args[1]) {
     scope = `component:${args[1]}`;
     const comp = parseComponent(join(ROOT, config.paths.components, `${args[1]}.component.html`));
@@ -478,38 +484,77 @@ async function cmdValidate(args: string[]): Promise<number> {
   } else {
     // Validate every page and component, collecting all failures instead of stopping at the first
     for (const p of findPages(join(ROOT, config.paths.pages))) {
-      collect(() => validatePageStructure(renderPage(ROOT, p, false, warnings)));
+      collect(() => validatePageStructure(renderPage(ROOT, p, false, warnings)), pageFileOf(p));
+      pushOrphanDataWarnings(warnings, p);
     }
     for (const c of findComponents(join(ROOT, config.paths.components))) {
       collect(() => { warnings.push(...validateComponent(parseComponent(join(ROOT, config.paths.components, `${c}.component.html`)))); });
     }
   }
 
-  const ok = errors.length === 0 && (!strict || warnings.length === 0);
+  // A component validated once per page and once per component would otherwise
+  // be reported N+1 times, burying real findings.
+  const dedupedErrors = dedupeDiagnostics(errors);
+  const dedupedWarnings = dedupeDiagnostics(warnings);
+
+  const ok = dedupedErrors.length === 0 && (!strict || dedupedWarnings.length === 0);
 
   if (jsonMode) {
     emit({
       ok,
       scope,
-      errors: errors.map((e) => e.toJSON()),
-      warnings: warnings.map((w) => w.toJSON()),
+      errors: dedupedErrors.map((e) => e.toJSON()),
+      warnings: dedupedWarnings.map((w) => w.toJSON()),
     });
     return ok ? 0 : 1;
   }
 
-  for (const e of errors) io.err(e.format() + '\n');
-  for (const w of warnings) io.err(w.format() + '\n');
+  for (const e of dedupedErrors) io.err(e.format() + '\n');
+  for (const w of dedupedWarnings) io.err(w.format() + '\n');
 
-  if (errors.length > 0) {
-    io.err(`Validation failed: ${errors.length} error(s).\n`);
+  if (dedupedErrors.length > 0) {
+    io.err(`Validation failed: ${dedupedErrors.length} error(s).\n`);
     return 1;
   }
-  if (warnings.length > 0) {
-    io.out(`Validation passed with ${warnings.length} warning(s).\n`);
+  if (dedupedWarnings.length > 0) {
+    io.out(`Validation passed with ${dedupedWarnings.length} warning(s).\n`);
     return strict ? 1 : 0;
   }
   io.out('Validation passed.\n');
   return 0;
+}
+
+/** Warn about data files whose component the page no longer references (issue 15.3). */
+function pushOrphanDataWarnings(warnings: EngineError[], pageName: string): void {
+  const config = loadConfig(ROOT);
+  let components: string[];
+  try {
+    components = parsePage(join(ROOT, config.paths.pages, `${pageName}.page.yaml`)).components;
+  } catch {
+    return; // page errors are reported by renderPage
+  }
+  for (const orphan of findOrphanDataComponents(ROOT, pageName, components)) {
+    const file = join(config.paths.data, pageName, `${orphan}.yaml`);
+    warnings.push(new EngineError(
+      `Data file "${file}" has no matching component on page "${pageName}"`,
+      file,
+      undefined,
+      'WARNING',
+      `Delete the file, or add "${orphan}" back to the page's components.`,
+      'DATA_FILE_ORPHAN',
+    ));
+  }
+}
+
+/** Drop exact duplicates so a warning is never reported more than once. */
+function dedupeDiagnostics(items: EngineError[]): EngineError[] {
+  const seen = new Set<string>();
+  return items.filter((e) => {
+    const key = `${e.code}|${e.file}|${e.field ?? ''}|${e.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 interface BuildOutcome {
@@ -554,7 +599,9 @@ function buildPages(pageNames?: string[]): BuildOutcome {
   }
 
   copyAssets(ROOT);
-  return { pages, warnings };
+  // A component shared by several pages is validated once per page; report each
+  // distinct warning once.
+  return { pages, warnings: dedupeDiagnostics(warnings) };
 }
 
 /** Resolve an optional page argument: `page <p>`, bare `<p>`, or undefined for all. */

@@ -1,0 +1,53 @@
+/* Fixed-canvas deck baseline.
+   Sizes are in px, so screen and print agree — vh/vw are resolved against the
+   print viewport by the browser and reflow a fixed slide (issue 16). */
+:root {
+  --color-bg: {{bg}};
+  --color-surface: {{surface}};
+  --color-text: {{text}};
+  --color-text-muted: {{text-muted}};
+  --color-accent: {{accent}};
+  --color-accent-text: {{accent-text}};
+  --font-family: {{font-family}};
+  --font-size-h1: {{font-size-h1}};
+  --font-size-body: {{font-size-body}};
+  --space-lg: {{space-lg}};
+  --radius-md: {{radius-md}};
+  --slide-w: 1280px;
+  --slide-h: 720px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* One printed page per slide, exactly the canvas size, no margins. */
+@page { size: 1280px 720px; margin: 0; }
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+/* The single page-level container from layout.wrapper: true */
+.page {
+  width: var(--slide-w);
+  height: var(--slide-h);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  overflow: hidden;
+}
+
+h1 { font-size: var(--font-size-h1); line-height: 1.1; margin: 0; }
+p { margin: 0; color: var(--color-text-muted); }
+ul { margin: 0; padding-left: 1.25rem; }
+li { margin-bottom: 0.5rem; }
+
+@media print {
+  body { background: #ffffff; }
+  .page { break-after: page; }
+}

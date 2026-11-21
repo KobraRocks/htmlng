@@ -22,12 +22,21 @@ export interface Component {
   schema: PlaceholderSchema;
 }
 
+/** Page-level layout hooks (issue 09/10): optional wrapper element and body classes. */
+export interface PageLayout {
+  /** Wrap all component wrappers in `<div id="page" class="page">`. */
+  wrapper?: boolean;
+  /** Extra classes appended to `<body class="...">` after the page name. */
+  bodyClass?: string;
+}
+
 export interface Page {
   title: string;
   description: string;
   lang?: string;
   favicon?: string;
   viewport?: string;
+  layout?: PageLayout;
   head?: {
     meta?: Array<{ name: string; content: string }>;
     link?: Array<{ rel: string; href: string }>;

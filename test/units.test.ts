@@ -3,8 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadConfig } from '../src/config.js';
-import { parsePage, findPages } from '../src/page.js';
-import { loadData } from '../src/data-file.js';
+import { parsePage, findPages, comparePageNames } from '../src/page.js';
+import { loadData, findOrphanDataComponents } from '../src/data-file.js';
 import { affectedPages } from '../src/propagation.js';
 import { copyAssets } from '../src/copier.js';
 import { unsafeUrlReason } from '../src/url-safety.js';
@@ -109,6 +109,52 @@ describe('page', () => {
     page('about', ['a']);
     expect(findPages(join(dir, 'pages')).sort()).toEqual(['about', 'index']);
   });
+
+  it('orders numeric page names naturally, not lexicographically', () => {
+    for (const name of ['slide-1', 'slide-2', 'slide-10', 'slide-3']) page(name, ['a']);
+    expect(findPages(join(dir, 'pages'))).toEqual(['slide-1', 'slide-2', 'slide-3', 'slide-10']);
+  });
+
+  it('compares page names by numeric runs and code units', () => {
+    expect(comparePageNames('slide-2', 'slide-10')).toBeLessThan(0);
+    expect(comparePageNames('slide-10', 'slide-2')).toBeGreaterThan(0);
+    expect(comparePageNames('slide-1', 'slide-1')).toBe(0);
+    expect(comparePageNames('a', 'a1')).toBeLessThan(0);
+    expect(comparePageNames('A', 'a')).toBeLessThan(0);
+  });
+
+  it('is a total order even when numeric chunks tie', () => {
+    const names = ['slide-07', 'slide-7', 'slide-007'];
+    const sorted = [...names].sort(comparePageNames);
+    expect(sorted).toEqual(['slide-007', 'slide-07', 'slide-7']);
+    expect([...names].reverse().sort(comparePageNames)).toEqual(sorted);
+    // Integers beyond Number.MAX_SAFE_INTEGER still order deterministically.
+    expect(comparePageNames('slide-9007199254740993', 'slide-9007199254740992')).toBeGreaterThan(0);
+    expect(comparePageNames('', 'a')).toBeLessThan(0);
+  });
+
+  it('reads the optional layout block', () => {
+    writeFileSync(join(dir, 'pages', 'deck.page.yaml'),
+      'title: "t"\ndescription: "d"\ncomponents: []\nlayout:\n  wrapper: true\n  bodyClass: "deck"\n');
+    expect(parsePage(join(dir, 'pages', 'deck.page.yaml')).layout).toEqual({ wrapper: true, bodyClass: 'deck' });
+  });
+
+  it('leaves layout undefined when the page omits it', () => {
+    page('plain', ['a']);
+    expect(parsePage(join(dir, 'pages', 'plain.page.yaml')).layout).toBeUndefined();
+  });
+
+  it('rejects a non-boolean layout.wrapper', () => {
+    writeFileSync(join(dir, 'pages', 'bad.page.yaml'),
+      'title: "t"\ndescription: "d"\ncomponents: []\nlayout:\n  wrapper: "yes"\n');
+    expect(codeOf(() => parsePage(join(dir, 'pages', 'bad.page.yaml')))).toBe('PAGE_LAYOUT_INVALID');
+  });
+
+  it('rejects a non-string layout.bodyClass', () => {
+    writeFileSync(join(dir, 'pages', 'bad.page.yaml'),
+      'title: "t"\ndescription: "d"\ncomponents: []\nlayout:\n  bodyClass: 7\n');
+    expect(codeOf(() => parsePage(join(dir, 'pages', 'bad.page.yaml')))).toBe('PAGE_LAYOUT_INVALID');
+  });
 });
 
 describe('data-file', () => {
@@ -132,6 +178,18 @@ describe('data-file', () => {
   it('rejects an array element that is not an object', () => {
     data('index', 'bad', '- one\n- two\n');
     expect(codeOf(() => loadData(dir, 'index', 'bad'))).toBe('DATA_ARRAY_ITEM_INVALID');
+  });
+
+  it('reports data files whose component the page does not reference', () => {
+    data('index', 'used', 'heading: "x"\n');
+    data('index', 'stale', 'heading: "y"\n');
+    writeFileSync(join(dir, 'data', 'index', 'notes.txt'), 'ignored\n');
+    expect(findOrphanDataComponents(dir, 'index', ['used'])).toEqual(['stale']);
+    expect(findOrphanDataComponents(dir, 'index', ['used', 'stale'])).toEqual([]);
+  });
+
+  it('reports no orphans when the data directory is missing', () => {
+    expect(findOrphanDataComponents(dir, 'nope', ['used'])).toEqual([]);
   });
 });
 

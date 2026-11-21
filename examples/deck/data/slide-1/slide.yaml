@@ -1,0 +1,7 @@
+heading: "Fixed-canvas slides"
+body: "<p>One 1280×720 page per slide. Arrow keys navigate; printing produces one page per slide.</p>"
+points:
+  - "layout.wrapper gives the deck a single container to lay out"
+  - "px sizes print the same as they render — no vh reflow"
+  - "the body carries the page name for per-slide CSS"
+  - "scripts run after the DOM, so no DOMContentLoaded dance"

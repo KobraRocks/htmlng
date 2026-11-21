@@ -1,0 +1,10 @@
+<p>{{text:label}} · <span class="counter">{{text:current}} / {{text:total}}</span> · ← →</p>
+---
+p { font-size: 0.95rem; }
+.counter { color: var(--color-accent); }
+---
+{
+  "label": { "type": "text", "required": true },
+  "current": { "type": "text", "required": true },
+  "total": { "type": "text", "required": true }
+}

@@ -49,6 +49,10 @@ export const ERROR_CATALOG: Record<string, CatalogEntry> = {
     summary: 'A template wraps its whole content in <div class="<component-name>">.',
     fix: 'Remove the outer div — the engine already emits the semantic wrapper with that class.',
   },
+  COMPONENT_PLACEHOLDER_IN_ATTRIBUTE: {
+    summary: 'An {{image:...}}, {{link:...}} or {{slot:...}} placeholder is used as an attribute value.',
+    fix: 'Those placeholders emit a whole element. Use them as element content, e.g. <span class="logo">{{image:logo}}</span>, and style the box in the CSS section.',
+  },
 
   // ── Template / placeholders ───────────────────────────
   TEMPLATE_PLACEHOLDER_UNKNOWN: {
@@ -56,12 +60,12 @@ export const ERROR_CATALOG: Record<string, CatalogEntry> = {
     fix: 'Add the field to the schema section, or fix the name in the template. Check for typos.',
   },
   TEMPLATE_UNCLOSED_BLOCK: {
-    summary: 'A {{#list:...}} or {{#bool:...}} block is missing its closing tag.',
-    fix: 'Add the matching {{/list:name}} or {{/bool:name}}.',
+    summary: 'A {{#list:...}}, {{#bool:...}}, {{#if:...}} or {{#unless:...}} block is missing its closing tag.',
+    fix: 'Add the matching {{/list:name}}, {{/bool:name}}, {{/if:name}} or {{/unless:name}}.',
   },
   TEMPLATE_UNKNOWN_BLOCK: {
-    summary: 'A block uses a type other than list or bool.',
-    fix: 'Only {{#list:name}}...{{/list:name}} and {{#bool:name}}...{{/bool:name}} are blocks.',
+    summary: 'A block uses a type other than list, bool, if or unless.',
+    fix: 'Blocks are {{#list:name}}, {{#bool:name}}, {{#if:name}} and {{#unless:name}}.',
   },
   TEMPLATE_UNKNOWN_PLACEHOLDER: {
     summary: 'A {{type:name}} placeholder uses an unknown type.',
@@ -119,6 +123,10 @@ export const ERROR_CATALOG: Record<string, CatalogEntry> = {
     summary: 'A data file sets a key the component schema does not use.',
     fix: 'Remove the key, or add it to the component schema if it is intended.',
   },
+  DATA_FILE_ORPHAN: {
+    summary: 'A data file exists for a component the page no longer lists.',
+    fix: 'Delete data/<page>/<component>.yaml, or add the component back to the page. A stale file is silently picked up if the component returns.',
+  },
   SCHEMA_FIELD_UNUSED: {
     summary: 'A component schema defines a field the template never uses.',
     fix: 'Remove the field from the schema, or reference it with {{...field}} in the template.',
@@ -162,8 +170,12 @@ export const ERROR_CATALOG: Record<string, CatalogEntry> = {
     fix: 'Check component templates for an unbalanced </body> or stray tag.',
   },
   PAGE_BODY_CHILD: {
-    summary: 'The body has a direct child other than header/section/footer.',
-    fix: 'The engine emits the wrappers; a raw <div> in a component template usually means an extra wrapper was added.',
+    summary: 'The body has a direct child other than header/section/footer, a page script, or the layout wrapper.',
+    fix: 'The engine emits the wrappers, page scripts, and the optional <div id="page">. A raw top-level <div> usually means a component template added an extra wrapper — the engine already wraps each component.',
+  },
+  PAGE_LAYOUT_INVALID: {
+    summary: 'A page "layout" field has the wrong type.',
+    fix: 'layout.wrapper must be a boolean and layout.bodyClass a string.',
   },
   PAGE_DUPLICATE_ID: {
     summary: 'Two elements in the page share the same id.',

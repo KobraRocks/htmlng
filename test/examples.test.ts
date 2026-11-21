@@ -42,10 +42,15 @@ describe('examples', () => {
         for (const pageName of findPages(join(root, 'pages'))) {
           const page = parsePage(join(root, 'pages', `${pageName}.page.yaml`));
           const html = renderPage(root, pageName);
-          expect(html).toContain(`<header id="${page.components[0]}"`);
-          if (page.components[page.components.length - 1] === 'footer') {
-            expect(html).toContain('<footer id="footer" class="footer">');
+          // Wrapper role is name-based: header -> <header>, footer -> <footer>,
+          // everything else -> <section>.
+          for (const name of page.components) {
+            const tag = name === 'header' ? 'header' : name === 'footer' ? 'footer' : 'section';
+            expect(html, `${project}/${pageName}`).toContain(`<${tag} id="${name}"`);
           }
+          // The page name is always the first <body> class; layout.bodyClass may add more.
+          expect(html).toContain(`<body class="${pageName}`);
+          expect(html).toContain(`data-page="${pageName}"`);
         }
       });
 

@@ -1,6 +1,6 @@
 import type { Component } from './types.js';
 
-const PASSTHROUGH_AT_RULES = new Set(['@keyframes', '@font-face']);
+const PASSTHROUGH_AT_RULES = new Set(['@keyframes', '@font-face', '@page']);
 
 /**
  * Prefix every selector in CSS with ".className" (unless already prefixed).
@@ -116,15 +116,106 @@ function scopeAtRuleBlock(block: string, prefix: string): string {
   return header + '\n' + scopedInner + '\n' + closing;
 }
 
+// A leading html/body/:root/:host (first compound only) already targets the
+// document root, so a component prefix could never match it. The trailing
+// character class excludes `-` so custom elements like `body-copy` stay scoped.
+const ROOT_SELECTOR = /^(?:html|body|:root|:host)(?![A-Za-z0-9_-])/i;
+const GLOBAL_SELECTOR = /:global\s*\(/;
+
 function prefixSelectors(selectorList: string, prefix: string): string {
-  return selectorList
-    .split(',')
-    .map((s) => {
-      const sel = s.trim();
-      if (sel.startsWith(prefix)) return sel;
-      return `${prefix} ${sel}`;
-    })
+  return splitSelectorList(selectorList)
+    .map((s) => scopeSelector(s.trim(), prefix))
     .join(', ');
+}
+
+/**
+ * Split a selector list on top-level commas only: commas inside parentheses or
+ * quoted attribute selectors (`[data-role="a,b"]`) are not separators.
+ */
+function splitSelectorList(selectorList: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote = '';
+  let start = 0;
+
+  for (let i = 0; i < selectorList.length; i++) {
+    const ch = selectorList[i];
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === '(') {
+      depth++;
+    } else if (ch === ')') {
+      depth = Math.max(0, depth - 1);
+    } else if (ch === ',' && depth === 0) {
+      parts.push(selectorList.slice(start, i));
+      start = i + 1;
+    }
+  }
+
+  parts.push(selectorList.slice(start));
+  return parts;
+}
+
+/** Replace every `:global(<sel>)` with `<sel>`, matching balanced parentheses. */
+function unwrapGlobal(sel: string): string {
+  let out = '';
+  let i = 0;
+
+  while (i < sel.length) {
+    const idx = sel.indexOf(':global', i);
+    if (idx === -1) {
+      out += sel.slice(i);
+      break;
+    }
+    out += sel.slice(i, idx);
+
+    let j = idx + ':global'.length;
+    while (j < sel.length && /\s/.test(sel[j])) j++;
+    if (sel[j] !== '(') {
+      out += sel.slice(idx, j);
+      i = j;
+      continue;
+    }
+
+    let depth = 1;
+    let k = j + 1;
+    for (; k < sel.length && depth > 0; k++) {
+      if (sel[k] === '(') depth++;
+      else if (sel[k] === ')') depth--;
+    }
+    if (depth !== 0) {
+      // Unbalanced — leave the rest untouched rather than emit broken CSS.
+      out += sel.slice(idx);
+      break;
+    }
+    out += sel.slice(j + 1, k - 1).trim();
+    i = k;
+  }
+
+  return out;
+}
+
+function scopeSelector(sel: string, prefix: string): string {
+  // Any :global(...) opts the whole selector out of scoping; unwrap it to X.
+  if (GLOBAL_SELECTOR.test(sel)) {
+    const unwrapped = unwrapGlobal(sel);
+    return unwrapped.trim() ? unwrapped : sel;
+  }
+  if (ROOT_SELECTOR.test(sel)) return sel;
+  if (isAlreadyScoped(sel, prefix)) return sel;
+  return `${prefix} ${sel}`;
+}
+
+/** True when the selector already begins with this component's class, with a
+ * boundary so `.hero2` is not mistaken for `.hero`. */
+function isAlreadyScoped(sel: string, prefix: string): boolean {
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped}(?![\\w-])`).test(sel);
 }
 
 // ── CSS splitting ───────────────────────────────────────

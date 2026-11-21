@@ -77,6 +77,8 @@ function walk(
       const inner = tokens.slice(i + 1, j - 1);
       if (blockType === 'list') output += resolveList(inner, blockName, data, components, depth, visited);
       else if (blockType === 'bool') output += resolveBool(inner, blockName, data, components, depth, visited);
+      else if (blockType === 'if') output += resolveConditional(inner, blockName, data, components, depth, visited, false);
+      else if (blockType === 'unless') output += resolveConditional(inner, blockName, data, components, depth, visited, true);
       else throw new EngineError(`Unknown block type: {{#${blockType}:${blockName}}}`, '', blockName, 'ERROR', undefined, 'TEMPLATE_UNKNOWN_BLOCK');
 
       i = j;
@@ -158,6 +160,29 @@ function resolveBool(
   visited: Set<string>,
 ): string {
   return data[name] === true ? walk(inner, data, components, depth, visited) : '';
+}
+
+/** Renders `inner` when `data[name]` is truthy (`negate` inverts), reusing the current data scope. */
+function resolveConditional(
+  inner: Token[],
+  name: string,
+  data: Record<string, PlaceholderValue>,
+  components: Map<string, Component>,
+  depth: number,
+  visited: Set<string>,
+  negate: boolean,
+): string {
+  return isTruthy(data[name]) !== negate ? walk(inner, data, components, depth, visited) : '';
+}
+
+function isTruthy(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'number') return value !== 0 && !Number.isNaN(value);
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return false;
 }
 
 function resolveSlot(

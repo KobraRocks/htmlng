@@ -78,14 +78,34 @@ export function parseComponent(filePath: string): Component {
 
   // Validate schema entries have valid types
   const validTypes = new Set(['text', 'html', 'image', 'link', 'list', 'bool', 'slot']);
-  for (const [name, def] of Object.entries(schema)) {
-    if (!validTypes.has(def.type)) {
+  for (const [name, rawDef] of Object.entries(schema)) {
+    if (typeof rawDef !== 'object' || rawDef === null || Array.isArray(rawDef)) {
       throw new EngineError(
-        `Invalid placeholder type "${def.type}" for "${name}". Must be one of: ${[...validTypes].join(', ')}`,
+        `Schema entry "${name}" must be an object like {"type":"text"}`,
         filePath,
         name,
         'ERROR',
         undefined,
+        'COMPONENT_PLACEHOLDER_TYPE',
+      );
+    }
+
+    const def = rawDef as { type?: unknown };
+    if (typeof def.type !== 'string' || !validTypes.has(def.type)) {
+      // A nested `"item": { ...fields }` is the intuitive shape for a repeating
+      // list, but the engine does not support it — say so instead of "undefined".
+      const isNestedItemSchema = def.type === undefined;
+      const help = isNestedItemSchema
+        ? 'Nested "item" schemas are not supported. For component repetition, make the data file a YAML sequence and declare the fields flat in the schema (the engine emits one wrapper per element). For a list inside one instance, use {{#list:name}} with the item fields read via {{text:field}}.'
+        : undefined;
+      throw new EngineError(
+        isNestedItemSchema
+          ? `Schema entry "${name}" has no "type" — nested item schemas are not supported`
+          : `Invalid placeholder type "${String(def.type)}" for "${name}". Must be one of: ${[...validTypes].join(', ')}`,
+        filePath,
+        name,
+        'ERROR',
+        help,
         'COMPONENT_PLACEHOLDER_TYPE',
       );
     }

@@ -74,4 +74,38 @@ describe('validatePageStructure', () => {
     const html = '<!DOCTYPE html><html><head></head><body><header id="dup" class="h">a</header><section id="dup" class="s">b</section></body></html>';
     expect(() => validatePageStructure(html)).toThrow(EngineError);
   });
+
+  it('allows the page layout wrapper and body-end page scripts', () => {
+    const html = '<!DOCTYPE html><html><head></head><body><div id="page" class="page"><section id="s" class="s">y</section></div><script src="a.js"></script></body></html>';
+    expect(() => validatePageStructure(html)).not.toThrow();
+  });
+
+  it('does not treat data-id="page" as the layout wrapper', () => {
+    const html = '<!DOCTYPE html><html><head></head><body><div data-id="page">bad</div></body></html>';
+    expect(() => validatePageStructure(html)).toThrow(/Disallowed direct child/);
+  });
+});
+
+describe('validateComponent — element placeholders in attributes', () => {
+  const base: Component = { name: 'test', template: '', css: '', schema: { logo: { type: 'image' } } };
+
+  it('rejects a quoted attribute value', () => {
+    const comp = { ...base, template: '<img src="{{image:logo}}" alt="x">' };
+    try {
+      validateComponent(comp);
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect((e as EngineError).code).toBe('COMPONENT_PLACEHOLDER_IN_ATTRIBUTE');
+    }
+  });
+
+  it('rejects an unquoted attribute value', () => {
+    const comp = { ...base, template: '<img src={{image:logo}} alt="x">' };
+    expect(() => validateComponent(comp)).toThrow(/emits a whole element/);
+  });
+
+  it('accepts the placeholder as element content', () => {
+    const comp = { ...base, template: '<span class="logo">{{image:logo}}</span>' };
+    expect(() => validateComponent(comp)).not.toThrow();
+  });
 });

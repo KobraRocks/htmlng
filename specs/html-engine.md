@@ -33,7 +33,7 @@ Determinism is achieved not by making the AI more precise, but by **eliminating 
 | **Scoped CSS** | Component styles are class-prefixed — no global selectors leak |
 | **Deterministic rendering** | Same inputs → same output, always |
 | **AI-first ergonomics** | File names = component IDs, placeholders are typed and constrained |
-| **Semantic purity** | `body` direct children are only `header`, `section[id]`, `footer` |
+| **Semantic purity** | `body` direct children are only `header`, `section[id]`, `footer`, page scripts, and at most one `<div id="page">` layout wrapper |
 
 ---
 
@@ -45,8 +45,8 @@ Determinism is achieved not by making the AI more precise, but by **eliminating 
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | C1  | Pure semantic HTML — no frameworks, no `<div>` soup. For example cards can be represented by a list `<ul>` and `<li>` as card                                               |
 | C2  | Every section carries an `id` for direct navigation                                                                                                                         |
-| C3  | `body>header` is always the hero section                                                                                                                                    |
-| C4  | `body>footer` is always the footer section                                                                                                                                  |
+| C3  | A component named `header` is wrapped in `<header id="header" class="header">` — the wrapper role comes from the component **name**, never its position in the page |
+| C4  | A component named `footer` is wrapped in `body>footer`; the built-in default `<footer id="footer">` is appended only when no component named `footer` exists                  |
 | C5  | Each section is a component, identified by its class                                                                                                                        |
 | C6  | Nested CSS scoped inside the component class                                                                                                                                |
 | C7  | CSS is compiled per-page; a component CSS change triggers re-rendering of every page that includes that component; a `global.css` change triggers re-rendering of all pages |
@@ -60,12 +60,12 @@ Determinism is achieved not by making the AI more precise, but by **eliminating 
 | C10 | **Typed placeholders with strict validation.** Slots are `{{type:name}}`. `text` validates against a whitelist of safe inline formatting tags (`<strong>`, `<em>`, `<a href>`, `<code>`, `<br>`, etc.) — anything outside the whitelist is rejected with an error telling the AI exactly what to fix. `html` is raw and unsanitized — use for trusted block-level content. `image`, `link`, `list`, `bool`, and `slot` each enforce their own structure. | Reduces AI error; the engine validates and gives actionable error messages. The AI can't accidentally inject `<script>` via a `text` field — it gets an error instead. |
 | C11 | **CSS class-prefixing is automatic, built on a global baseline.** A `global.css` sets default styles for all semantic elements (h1–h6, p, a, ul, etc.) so every component inherits consistent typography, colors, and spacing. Component CSS then prefixes selectors — `h1 { font-size: 2rem; }` inside `.hero` emits `.hero h1 { font-size: 2rem; }` — adding only component-specific overrides. | Semantic elements look consistent everywhere by default. Components only style what's unique. Prevents leakage and reduces redundant CSS. |
 | C12 | **Page files are layout-only.** A page declares component references and their order. Zero content lives in page files. | Separates structure from content. Reordering sections never breaks content. |
-| C13 | **No inline styles, no inline scripts in components.** All styling goes through the component CSS system. All behavior is external. Scripts are declared in page YAML (`scripts: [...]`) and emitted as `<script src="...">` in `<head>` or before `</body>`. No `<script>` or `<style>` tags may appear in component templates. | Closes escape hatches that bypass the component model. Scripts are managed at page level, not component level. |
+| C13 | **No inline styles, no inline scripts in components.** All styling goes through the component CSS system. All behavior is external. Scripts are declared in page YAML (`scripts: [...]`); by default they are emitted at the end of `<body>` (DOM available). `head: true` moves a script to `<head>` and the engine adds `defer` unless the author set `defer` or `async`. No `<script>` or `<style>` tags may appear in component templates. | Closes escape hatches that bypass the component model. Scripts are managed at page level, not component level. |
 | C14 | **Rendered output is regenerated from scratch.** The engine always wipes `build/` and regenerates from source. Source of truth is always the component templates + data files. If a page needs custom content in `build/` (e.g. a `robots.txt`), place it in `assets/` and it is copied through. | No drift between source and output. No manual edits to build/ survive a rebuild — everything flows through the engine. |
-| C15 | **Strict body structure.** `body` accepts only `<header>`, `<section id="...">`, and `<footer>` as direct children. Any other structure is a validation error. | Guarantees semantic flatness. |
+| C15 | **Strict body structure.** `body` accepts only `<header>`, `<section id="...">`, `<footer>`, page `<script>` tags, and the optional single `<div id="page">` layout container as direct children. Any other structure is a validation error. | Guarantees semantic flatness while allowing page scripts and one page-level layout wrapper. |
 | C16 | **Change propagation is explicit and minimal.** Changing component C → re-render only pages that include C. Changing page P's layout → re-render only P. Changing `global.css` → re-render all pages. | Fast feedback. Deterministic scope. |
 | C17 | **CLI as the AI feedback loop.** The engine is a CLI with two-tier rendering: `engine render component <name> --page <page>` for per-component copy validation, and `engine render page <name>` for full assembly validation. All render commands output to stdout; only `engine build` writes to disk. | AI validates incrementally (component by component), then holistically (full page), then commits. |
-| C18 | **Stale output detection.** The engine tracks source hashes. If rendered output is up-to-date, `engine render` returns it without rebuilding but notes "(cached)". If source has changed, it rebuilds and annotates what triggered the rebuild. | AI knows whether it's seeing fresh or cached output. Transparency builds trust. |
+| C18 | **Stale output detection.** The engine tracks source hashes. `engine render` is a read-only command: it always renders fresh output, reports `=== STATUS: rendered`, and its `--json` `status` field is always `rendered`; the `changed` array lists tracked sources that differ from the last build. | AI knows whether it's seeing fresh or cached output. Transparency builds trust. |
 | C19 | **Scaffolding over hand-creation.** `engine create component <name>` scaffolds a valid component file with the correct three-section format, empty placeholders, and empty schema. `engine create page <name>` scaffolds a page YAML. The AI fills content into pre-validated skeletons. | Reduces boilerplate errors. AI starts from a known-good template every time. |
 | C20 | **Design tokens live in `global.css`.** All `--custom-property` declarations are defined in `:root` inside `global.css`. Component CSS references them via `var()`. No component declares its own tokens. | Single source of truth for colors, spacing, typography. Changing a token updates every component. |
 
@@ -123,7 +123,7 @@ paths:
   pages: "pages"
   data: "data"
   assets: "assets"
-  build: "build"
+  build: "build"              # single path segment (no "/" or ".."); wiped when building all pages
 
 build:
   minify: false               # Minify HTML/CSS output
@@ -299,6 +299,19 @@ hero_bg:
 <img src="assets/images/hero-bg.webp" alt="Team collaborating in a modern office" width="1200" height="800" loading="lazy">
 ```
 
+**`image`, `link`, and `slot` emit whole elements.** They can only be used as element content — never inside an attribute value. `src="{{image:logo}}"` is a `COMPONENT_PLACEHOLDER_IN_ATTRIBUTE` error because the replacement `<img ...>` would land inside the quotes and corrupt the markup. Put the placeholder in the element body and size the box in CSS:
+
+```html
+<!-- ❌ error: element inside an attribute -->
+<img src="{{image:logo}}" alt="Logo">
+
+<!-- ✅ correct: placeholder is content, CSS owns the box -->
+<span class="logo">{{image:logo}}</span>
+```
+```css
+.logo img { height: 2rem; width: auto; }
+```
+
 #### 4.3.4 `link` — Anchor element
 
 **Template syntax**: `{{link:name}}`  
@@ -373,6 +386,8 @@ items:
 <li>First item</li><li>Second item</li>
 ```
 
+**`list` vs a sequence data file.** `{{#list:name}}` iterates an array *inside one component instance*; the item fields are read as `{{text:field}}` and are **not** component schema fields. To repeat the **whole component** (one wrapper per element, ids `<name>-0`, …), make the data file a YAML sequence instead — see §4.4. A nested `"item"` schema on a `list` field is unsupported and produces `COMPONENT_PLACEHOLDER_TYPE`.
+
 #### 4.3.6 `bool` — Conditional rendering
 
 **Template syntax**: block delimiters `{{#bool:name}}` ... `{{/bool:name}}`  
@@ -396,7 +411,34 @@ show_badge: true
 <!-- rendered (false) — empty, nothing emitted -->
 ```
 
-#### 4.3.7 `slot` — Nested component reference
+#### 4.3.7 `if` / `unless` — Field conditionals
+
+**Template syntax**: `{{#if:name}}...{{/if:name}}` and `{{#unless:name}}...{{/unless:name}}`  
+**Data value**: any type  
+**Rendered as**: `if` renders its block when the value is truthy; `unless` renders when it is falsy. The delimiters are always removed.
+
+Truthiness: `true`, a non-blank string (trimmed), a non-empty array/object, and a non-zero number are truthy. `false`, `null`/missing, `""`/whitespace, `[]`, `{}`, `0`, and `NaN` are falsy.
+
+Unlike `list`, conditionals reuse the **component's** data scope, so placeholders inside the block are ordinary schema fields. `if`/`unless` are block guards over an existing field, not schema entry types — the field keeps its real type (`text`, `bool`, `image`, …). Example:
+
+```yaml
+# data/index/hero.yaml
+show_badge: true
+badge_text: "New"
+```
+
+```html
+<!-- component template -->
+{{#if:show_badge}}<span class="badge">{{text:badge_text}}</span>{{/if:show_badge}}
+{{#unless:show_badge}}<span class="badge muted">—</span>{{/unless:show_badge}}
+
+<!-- rendered (show_badge: true) -->
+<span class="badge">New</span>
+```
+
+`if`/`unless` replace the "pass a class name through data" and "delete the schema field to silence a warning" workarounds: keep the field in the schema so data validation still applies, and guard its use in the template.
+
+#### 4.3.8 `slot` — Nested component reference
 
 **Template syntax**: `{{slot:name}}`  
 **Data value**: an object with `component` (the component name to embed) and `data` (its placeholder values). When `data` is omitted, the nested component uses the parent page's data directory — the engine looks for `data/<page>/<nested-component>.yaml`.
@@ -441,23 +483,35 @@ card_list:
 - A nested component's CSS is included in the page's compiled CSS
 - A component cannot reference itself directly or indirectly
 
-#### 4.3.8 Placeholder Type Summary
+#### 4.3.9 Placeholder Type Summary
 
 | Type | Template syntax | Data shape | Output |
 |------|----------------|------------|--------|
 | `text` | `{{text:name}}` | `string` (inline formatting allowed per whitelist) | Sanitized HTML with inline tags |
 | `html` | `{{html:name}}` | `string` | Raw HTML |
-| `image` | `{{image:name}}` | `{src, alt, width?, height?, loading?, class?}` | `<img>` element |
-| `link` | `{{link:name}}` | `{href, label}` | `<a>` element |
-| `list` | `{{#list:name}}...{{/list:name}}` | `array` | Repeated block |
-| `bool` | `{{#bool:name}}...{{/bool:name}}` | `boolean` | Conditional block |
-| `slot` | `{{slot:name}}` | `{component, data}` | Nested component |
+| `image` | `{{image:name}}` | `{src, alt, width?, height?, loading?, class?}` | `<img>` element (content only) |
+| `link` | `{{link:name}}` | `{href, label, class?}` | `<a>` element (content only) |
+| `list` | `{{#list:name}}...{{/list:name}}` | `array` | Repeated block inside one instance |
+| `bool` | `{{#bool:name}}...{{/bool:name}}` | `boolean` | Renders only when exactly `true` |
+| `if` | `{{#if:name}}...{{/if:name}}` | `any` | Renders when truthy |
+| `unless` | `{{#unless:name}}...{{/unless:name}}` | `any` | Renders when falsy |
+| `slot` | `{{slot:name}}` | `{component, data?}` | Nested component (content only) |
 
 ### 4.4 Data File Format
 
 A data file is a YAML (or JSON) file whose top-level keys match placeholder names in the component's template. The structure of each value depends on the placeholder type.
 
 **File naming**: `data/<page-name>/<component-name>.yaml`
+
+**Map vs sequence** — the top-level shape decides what repeats:
+
+| Top-level YAML | Meaning |
+|----------------|---------|
+| **Map** (one instance) | One component instance; keys are the schema fields. |
+| **Sequence** (repeat the component) | One instance per element, rendered once each with ids `<name>-0`, `<name>-1`, … (a single-element sequence also gets `-0`). Each element is a map of the **same flat schema fields**; the page lists the component once. |
+| **`list` field inside a map** | A block inside one instance, iterated by `{{#list:name}}`. Item fields are read as `{{text:field}}` and are **not** component schema fields. |
+
+A nested item schema (`"items": {"type": "list", "item": {"title": {...}}}`) is unsupported and fails with `COMPONENT_PLACEHOLDER_TYPE`; flatten the schema for component repetition, or read list item fields with `{{text:field}}`.
 
 ```yaml
 # data/index/hero.yaml — data for the hero component on the index page
@@ -486,7 +540,7 @@ features:
   - title: "Deterministic Output"
 ```
 
-**Validation rule**: every key in the data file must match a placeholder in the component's schema. Unknown keys produce a `WARNING`. Missing required keys produce an `ERROR` and the component/page will not render.
+**Validation rule**: every key in the data file must match a placeholder in the component's schema. Unknown keys produce a `WARNING`. Missing required keys produce an `ERROR` and the component/page will not render. In a sequence data file, schema errors name the failing element: `element [2] /body must be string`. A `data/<page>/<component>.yaml` whose component the page no longer lists produces a `DATA_FILE_ORPHAN` warning.
 
 ### 4.5 Component Rendering Rules
 
@@ -498,10 +552,12 @@ features:
 6. `link` placeholders emit an `<a>` element with `href` and text content
 7. `list` blocks iterate over the array; each iteration renders the block content with that item's fields in scope
 8. `bool` blocks render their content only if the value is `true`
-9. `slot` placeholders recursively render the referenced component with the provided data
-10. Missing required values → build error (page not rendered)
-11. Unused data keys → warning (AI may have a stale data file)
-12. Block delimiters (`{{#...}}`, `{{/...}}`) are removed from output regardless of rendering
+9. `if`/`unless` blocks reuse the component's data scope and render on truthiness/falsiness
+10. `slot` placeholders recursively render the referenced component with the provided data
+11. `image`, `link`, and `slot` placeholders emit whole elements; using one inside an attribute value → `COMPONENT_PLACEHOLDER_IN_ATTRIBUTE`
+12. Missing required values → build error (page not rendered)
+13. Unused data keys → warning (AI may have a stale data file)
+14. Block delimiters (`{{#...}}`, `{{/...}}`) are removed from output regardless of rendering
 
 ---
 
@@ -518,6 +574,9 @@ description: "Landing page for Acme"
 lang: "en"                         # Overrides engine.config.yaml if set
 favicon: "assets/images/favicon.svg"
 viewport: "width=device-width, initial-scale=1"
+layout:                             # Optional page-level layout (issue 09/10)
+  bodyClass: "dark print"           # appended after the page name on <body>
+  wrapper: true                     # wrap all component wrappers in <div id="page" class="page">
 head:                               # Additional <head> content (optional)
   meta:
     - name: "og:title"
@@ -530,8 +589,10 @@ head:                               # Additional <head> content (optional)
     - rel: "canonical"
       href: "https://acme.com/"
 scripts:                            # External scripts (optional)
-  - src: "assets/js/main.js"
+  - src: "assets/js/main.js"        # default: end of <body>, DOM available
     defer: true
+  - src: "assets/js/analytics.js"
+    head: true                      # → <head>, with defer added automatically
 components:
   - hero
   - features
@@ -540,19 +601,34 @@ components:
   - footer
 ```
 
+**Body identity**: the engine always emits `<body class="<page>" data-page="<page>">`. `layout.bodyClass` appends extra classes after the page name, so `body.index { … }` (or `body.<page> …`) scopes CSS to one page without a post-build script.
+
 ### 5.2 Assembly Rules
 
-1. Components are rendered in declared order
-2. The first component is wrapped in `<header id="component-name" class="component-name">` (C2, C3, C5) — the component's `id` and `class` transfer to the `<header>` wrapper
-3. The last component is wrapped in `<footer id="component-name" class="component-name">` if it's named `footer`. If the last component is NOT named `footer`, the engine appends a built-in default footer:
+The wrapper tag is derived from the component **name**, never its position in the page (C3, C4, C5):
+
+| Component name | Wrapper |
+|----------------|---------|
+| `header` | `<header id="header" class="header">` |
+| `footer` | `<footer id="footer" class="footer">` |
+| anything else | `<section id="<name>" class="<name>">` |
+
+1. Components are rendered in declared order and each gets exactly one wrapper carrying `id` and `class` = the component name
+2. A component named `header` is wrapped in `<header id="header" class="header">`
+3. A component named `footer` is wrapped in `<footer id="footer" class="footer">`
+4. If no component named `footer` exists, the engine appends a built-in default footer **after** the last component:
    ```html
    <footer id="footer" class="footer">
      <p>&copy; 2026 Acme Inc.</p>
    </footer>
    ```
    The year is the current year. The project name comes from `engine.config.yaml`.
-4. All other components are wrapped in `<section id="component-name" class="component-name">` (C2, C5)
-5. The component's rendered inner HTML is placed inside its wrapper
+5. Every other component is wrapped in `<section id="<name>" class="<name>">`
+6. The component's rendered inner HTML is placed inside its wrapper
+7. A sequence data file renders one wrapper per element, with `id="<name>-<index>"` (`-0`, `-1`, …); the `class` stays the plain component name
+8. The assembled body is `<body class="<page> [bodyClass]" data-page="<page>">`
+9. With `layout.wrapper: true`, all component wrappers are enclosed in `<div id="page" class="page">`
+10. Page scripts without `head` are emitted at the end of `<body>`; `head: true` scripts go to `<head>` with `defer` added unless `defer`/`async` is set
 
 ---
 
@@ -627,10 +703,12 @@ For each component `C` with class `c` and CSS block `B`:
 ```
 For every rule in B:
   For each selector in the comma-separated selector list:
-    If the selector is already prefixed with .c, leave it unchanged
+    If the selector starts with :global(...), emit it unscoped with :global(...) unwrapped
+    Else if the selector's first compound starts with html, body, :root, or :host, emit it unchanged
+    Else if the selector is already prefixed with .c, leave it unchanged
     Else, prepend ".c " to the selector
   Rejoin with ", "
-  
+
 Example:
   Input:  h1 { font-size: 3rem; }  .special { text-transform: uppercase; }
   Output: .hero h1 { font-size: 3rem; }  .hero .special { text-transform: uppercase; }
@@ -638,6 +716,17 @@ Example:
   Input:  h1, h2, h3 { margin: 0; }
   Output: .hero h1, .hero h2, .hero h3 { margin: 0; }
 ```
+
+**Scoping escape hatch (issue 07).** A `.c ` prefix could never match a document-root selector, so those are emitted unscoped; `:global(...)` opts a whole selector out:
+
+```css
+/* component CSS input                     → assembled output */
+body { display: flex; }                    /* → body { display: flex; } */
+:global(.leaflet-container) { z-index: 1; }/* → .leaflet-container { z-index: 1; } */
+@page { size: 1280px 720px; margin: 0; }   /* → passed through verbatim */
+```
+
+`@page` (like `@keyframes` and `@font-face`) is a passthrough at-rule and is never scoped. Selectors inside `@media`/`@supports` follow the same rules.
 
 ### 6.3 Per-Page CSS Assembly
 
@@ -696,12 +785,13 @@ Component B: .card { border-radius: 8px; }           → Merged (identical selec
   <link rel="canonical" href="https://acme.com/">
   <link rel="stylesheet" href="css/index.css">
 </head>
-<body>
-  <header id="hero" class="hero">
+<body class="index" data-page="index">
+  <!-- "hero" is a regular component, so it is a <section>. A component named "header" would render as <header id="header" class="header">. -->
+  <section id="hero" class="hero">
     <h1>Build Faster</h1>
     <p>Ship with confidence.</p>
     <a href="/signup">Get Started</a>
-  </header>
+  </section>
 
   <section id="features" class="features">
     <h2>Features</h2>
@@ -728,8 +818,10 @@ Component B: .card { border-radius: 8px; }           → Merged (identical selec
 
 ### 7.2 Structural Guarantees
 
-- `body` direct children are strictly: `<header>`, `<section id="...">` × N, `<footer>`
-- Every `<section>` has both `id` and `class` matching the component name
+- Wrapper roles are name-based: `header` → `<header>`, `footer` → `<footer>`, every other component → `<section id class>`; position in the page never changes the tag
+- `body` direct children are only: `<header>`, `<section id="...">` × N, `<footer>`, page `<script>` tags, and at most one `<div id="page">` layout wrapper
+- `<body>` always carries `class="<page> [bodyClass]"` and `data-page="<page>"`
+- Every `<section>` has both `id` and `class` matching the component name; sequence-data elements use `id="<name>-<index>"` and class `<name>`
 - No inline `style` attributes
 - No `<script>` or `<style>` tags originate from component templates; scripts only appear if declared in page YAML
 - All CSS is external, one file per page
@@ -768,7 +860,7 @@ The `<head>` of each page is assembled from:
 1. **Engine defaults**: `<meta charset="UTF-8">`
 2. **Page YAML fields**: `title` → `<title>`, `description` → `<meta name="description">`, `lang` → `<html lang>`, `favicon` → `<link rel="icon">`, `viewport` → `<meta name="viewport">`
 3. **Page YAML `head` block**: arbitrary `<meta>` and `<link>` tags for Open Graph, Twitter Cards, canonical URLs, preloads, etc.
-4. **Page YAML `scripts`**: each entry emits a `<script>` tag. `src` is required. Optional: `defer` (boolean), `async` (boolean), `type` (string, default `"text/javascript"`). Scripts are emitted at the end of `<body>` unless `head: true` is set.
+4. **Page YAML `scripts`**: each entry emits a `<script>` tag. `src` is required. Optional: `defer` (boolean), `async` (boolean), `type` (string, default `"text/javascript"`), `head` (boolean). Scripts are emitted at the end of `<body>` by default so the DOM exists when they run; `head: true` moves the script to `<head>` and the engine adds `defer` unless `defer` or `async` was set explicitly.
 5. **Compiled CSS link**: `<link rel="stylesheet" href="css/{page}.css">`
 
 ```yaml
@@ -780,10 +872,23 @@ scripts:
 
   - src: "assets/js/analytics.js"
     head: true
-# → <script src="assets/js/analytics.js"></script> in <head>
+# → <script src="assets/js/analytics.js" defer></script> in <head> (defer added automatically)
 ```
 
 No `<script>` or `<style>` tags are permitted inside component templates (C13). All scripts flow through the page YAML; all styles flow through `global.css` + component CSS blocks. The engine validates that component templates contain neither tag.
+
+---
+
+## 7.5 Print and Fixed-Canvas Output
+
+`vh`/`vw` are **not print-safe**: Chromium resolves them against the print viewport, so a fixed-size slide reflows on paper. For print/PDF output:
+
+1. Set `layout.wrapper: true` and give the `<div id="page">` container fixed `px` dimensions.
+2. Add `@page { size: 1280px 720px; margin: 0 }` to `global.css` (the `@page` at-rule passes through component CSS and global CSS unchanged).
+
+A built-in `--pdf` export is deliberately **not** implemented: it would require adding a headless-browser dependency to the engine.
+
+The repository's `examples/deck/` project is the known-good reference: two fixed 1280×720 slides using `layout.wrapper: true`, `layout.bodyClass: "deck"`, a body-end `assets/deck-nav.js` page script, `head.meta` with `deck-total`, and `@page { size: 1280px 720px; margin: 0 }` in `global.css`. It is covered by `test/examples.test.ts` and validates clean.
 
 ---
 
@@ -881,6 +986,8 @@ engine list components
 engine list data <page-name>
 ```
 
+`engine list pages`, `engine context`, and build-all enumerate page names in **natural sort order**: `slide-1`, `slide-2`, `slide-10` (digit chunks compare numerically, text chunks by code unit).
+
 ### 8.2 Two-Tier Rendering Philosophy
 
 ```
@@ -975,25 +1082,20 @@ When rendering a full page, the engine outputs the complete assembled HTML docum
   <meta name="description" content="Landing page for Acme">
   <link rel="stylesheet" href="css/index.css">
 </head>
-<body>
-  <header id="hero" class="hero">
+<body class="index" data-page="index">
+  <section id="hero" class="hero">
     <h1>Welcome to Acme</h1>
     ...
-  </header>
+  </section>
   ...
 </body>
 </html>
 ```
 
-If nothing changed since last build:
+Read-only `render` commands always print `=== STATUS: rendered` because they always produce fresh output, and the `--json` `status` field is `rendered` too. Use the `changed` array to see whether tracked sources differ from the last build:
 
-```
-=== PAGE: index
-=== STATUS: cached (no source changes)
-=== COMPONENTS: hero, features, pricing, cta, footer
-
-<!DOCTYPE html>
-...
+```json
+{ "ok": true, "page": "index", "status": "rendered", "changed": [], "html": "<!DOCTYPE html>…" }
 ```
 
 ### 8.5 Error Output
@@ -1099,19 +1201,22 @@ The AI reads these, fixes the input files, and re-runs the appropriate render co
 | Text field tag validation | `text` value contains a tag not on the inline whitelist, or an attribute not allowed on a whitelisted tag |
 | Placeholder resolution | `{{type:name}}` has no matching schema entry |
 | Schema validation | Required field missing, type mismatch, constraint violation |
-| Body structure | Non-semantic direct children of `<body>` |
+| Body structure | Direct child of `<body>` other than `header`/`section`/`footer`, a page `<script>`, or the single `<div id="page">` layout wrapper (`PAGE_BODY_CHILD`) |
 | Section identity | `<section>` missing `id` or `class` |
+| Element placeholder in attribute | `{{image:...}}`, `{{link:...}}`, or `{{slot:...}}` used inside an attribute value (`COMPONENT_PLACEHOLDER_IN_ATTRIBUTE`) |
 | CSS leakage | Component CSS selectors resolved against only that component's template DOM — any selector matching no element in the template is reported as potentially leaking (best-effort warning; requires CSS parsing + static DOM simulation) |
 | Duplicate IDs | Two sections with the same `id` in one page |
-| Orphan data | Data file with no matching component in the page |
+| Orphan data | Data file with no matching component in the page (`DATA_FILE_ORPHAN`, warning) |
+| Array data element | Schema error inside one element of a sequence data file — the message names it, e.g. `element [2] /body must be string` |
+| Duplicate diagnostics | Exact duplicate errors/warnings are collapsed before reporting, so one problem is reported once |
 
 ### 10.2 Runtime Invariants (in rendered output)
 
-- `document.querySelectorAll('body>*')` returns only `header`, `section`, `footer`
-- Every `section[id]` has exactly one matching component class
+- `document.querySelectorAll('body>*')` returns only `header`, `section`, `footer`, page `script` tags, and at most one `div#page` layout wrapper
+- Every `section[id]` has exactly one matching component class; sequence-data elements use `id="<name>-<index>"`
 - No two elements share the same `id`
-- CSS file contains only prefixed selectors matching components on the page
-- `<script>` tags are only present if declared in page YAML; they appear at end of `<body>` (or in `<head>` if `head: true`)
+- CSS file contains only prefixed selectors matching components on the page, except root selectors (`html`/`body`/`:root`/`:host`), `:global(...)` opt-outs, and `@page` passthrough
+- `<script>` tags are only present if declared in page YAML; they appear at end of `<body>` (or in `<head>` with `defer` when `head: true`)
 - No `<style>` tags or inline `style="..."` attributes exist anywhere in the output
 
 ---
@@ -1138,12 +1243,15 @@ The AI reads these, fixes the input files, and re-runs the appropriate render co
 | **Component** | A reusable, self-contained HTML snippet with scoped CSS and typed placeholders |
 | **Page** | An ordered assembly of components; no content of its own |
 | **Slot / Placeholder** | A `{{type:name}}` marker in a component template that receives data at render time |
-| **Block placeholder** | A `{{#type:name}}...{{/type:name}}` pair used for `list` iteration and `bool` conditionals |
-| **Data file** | YAML/JSON providing values for a component's placeholders on a specific page |
+| **Block placeholder** | A `{{#type:name}}...{{/type:name}}` pair used for `list` iteration, `bool`, and `if`/`unless` conditionals |
+| **Field conditional** | `{{#if:name}}`/`{{#unless:name}}` — renders a block from the component's own data scope based on truthiness |
+| **Data file** | YAML/JSON providing values for a component's placeholders on a specific page; a map is one instance, a sequence repeats the whole component |
 | **Scoped CSS** | Component styles automatically prefixed with the component class |
 | **Design tokens** | CSS custom properties (`--color-primary`, etc.) declared in `:root` in `global.css` |
 | **Build** | The deterministic process of assembling pages from component templates and data files |
 | **Propagation** | The rule determining which pages must re-render when a source file changes |
-| **Hero section** | The first component in a page, rendered inside `<header>`. Always the hero/banner. |
+| **Hero section** | Conventionally the first component on a page. It renders as `<section id="hero" class="hero">` unless it is named `header` (wrapper roles are name-based, never positional). |
+| **Page identity** | The `<body class="<page>" data-page="<page>">` attributes; `layout.bodyClass` appends extra classes so CSS can target one page. |
+| **Layout wrapper** | The optional `<div id="page" class="page">` emitted when page YAML sets `layout.wrapper: true`; owns flex/grid layout or a fixed print canvas. |
 | **Annotation header** | The `=== PAGE:` / `=== STATUS:` block prepended by `engine render` to tell the AI what was rendered and why. |
 | **Sample data** | Auto-generated placeholder values used by `engine preview`; derived from schema types (text → descriptive string, bool → true, list → one item, image → placeholder object). |

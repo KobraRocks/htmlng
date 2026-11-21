@@ -25,8 +25,9 @@ src/
   component.ts    parse components/<name>.component.html (template | css | schema)
   page.ts         parse pages/<name>.page.yaml
   data-file.ts    load data/<page>/<component>.yaml (object or array)
-  template.ts     {{type:name}}, {{#list}}/{{#bool}}, {{slot}} resolution
-  css.ts          selector scoping, @media/@keyframes passthrough, per-page dedupe
+  template.ts     {{type:name}}, {{#list}}/{{#bool}}/{{#if}}/{{#unless}}, {{slot}} resolution
+  css.ts          selector scoping (with html/body/:root/:host and :global escapes),
+                  @media/@keyframes/@page passthrough, per-page dedupe
   renderer.ts     assemble the full page (head, wrappers, scripts, CSS, warnings)
   validator.ts    component/data/structure validation
   schema.ts       hand-rolled placeholder schema validator (no ajv)
@@ -40,6 +41,8 @@ src/
   format-spec.ts     machine-readable file-format spec
 test/             unit + CLI tests; test/fixtures is a minimal project
 examples/landing/ a runnable reference project (kept warning-free)
+examples/deck/    fixed 1280×720 slide deck: layout.wrapper, bodyClass, body-end
+                  script, @page print rule — the known-good print-canvas reference
 specs/            functional spec + stack notes
 issues/           design notes, reviews, journey logs, ADRs
 ```
@@ -79,18 +82,26 @@ htmlng build                                # write build/
 ## Invariants (do not violate)
 
 1. **Component templates are inner content only.** The engine emits the semantic
-   wrapper (`<header>`/`<section id class>`/`<footer>`). Do not add a wrapper
-   `<div class="<component-name>">`; the validator warns (`COMPONENT_REDUNDANT_WRAPPER`).
+   wrapper from the component **name** (`header` → `<header>`, `footer` → `<footer>`,
+   everything else → `<section id class>`; position never decides the tag). Do not add a
+   wrapper `<div class="<component-name>">`; the validator warns (`COMPONENT_REDUNDANT_WRAPPER`).
 2. **Component files have three sections separated by lines containing only `---`**:
    template, optional CSS, JSON schema. An empty CSS section is allowed.
 3. **No `<script>`, `<style>`, or `style="..."` in a component template.** Scripts go in
-   the page YAML; styles go in the CSS section (auto-scoped under the component class).
+   the page YAML (end of `<body>` by default, or `<head>` with `head: true`); styles go in
+   the CSS section (auto-scoped under the component class, except `html`/`body`/`:root`/`:host`
+   first compounds and `:global(...)` selectors, which stay unscoped).
 4. **Every template placeholder must exist in the schema, and vice versa** (the latter
-   is a warning). `text` fields allow only the inline whitelist.
-5. **Data files** are a YAML map (one instance) or a sequence (repeat the component,
-   ids `<name>-0`, `<name>-1`, …).
-6. **Page files are layout only** — a title, description, and ordered component list.
-7. **Output is a pure function of sources.** Do not introduce nondeterminism.
+   is a warning). `text` fields allow only the inline whitelist. `if`/`unless` blocks share
+   the component scope; `list` item fields do not.
+5. **Data files** are a YAML map (one instance) or a sequence (repeat the whole component,
+   ids `<name>-0`, `<name>-1`, …; schema stays flat). A nested `item` schema is unsupported.
+6. **Page files are layout only** — title, description, ordered component list, optional
+   `layout` (`wrapper`/`bodyClass`), `head`, and `scripts`. The engine always emits
+   `<body class="<page>" data-page="<page>">`.
+7. **Element placeholders are content, not attributes** — `{{image:x}}`/`{{link:x}}`/`{{slot:x}}`
+   emit a whole element; inside an attribute value they are a `COMPONENT_PLACEHOLDER_IN_ATTRIBUTE` error.
+8. **Output is a pure function of sources.** Do not introduce nondeterminism.
 
 ## Discovery before guessing
 
@@ -130,7 +141,10 @@ Exit codes: `0` success, `1` any failure. Prefer `--json` over parsing prose.
 | `UNSAFE_URL` | `javascript:`/`vbscript:`/`file:`/`blob:` or a disallowed `data:` URL. Use http(s), mailto, tel, `#fragment`, or a relative path. |
 | `COMPONENT_NOT_FOUND` | Page references a missing component file. |
 | `COMPONENT_SECTIONS_MISSING` | Missing `---` separator (or the file uses CRLF incorrectly — now supported). |
-| `PAGE_DUPLICATE_ID` | Two elements share an id — often a `footer` component not placed last. |
+| `COMPONENT_PLACEHOLDER_IN_ATTRIBUTE` | `{{image}}`/`{{link}}`/`{{slot}}` used inside an attribute value — emit it as element content (`<span class="logo">{{image:logo}}</span>`). |
+| `COMPONENT_PLACEHOLDER_TYPE` (`nested item schemas are not supported`) | Flatten the schema and use a sequence data file to repeat the component, or `{{#list}}` with `{{text:field}}`. |
+| `PAGE_DUPLICATE_ID` | Two elements share an id — a raw `id` in a component template colliding with the engine wrapper, or a duplicated component. |
+| `DATA_FILE_ORPHAN` (warning) | `data/<page>/<component>.yaml` exists but the page no longer lists the component — delete the file or re-add the component. |
 | `SLOT_UNKNOWN_COMPONENT` | `{{slot:x}}` references a component that does not exist. |
 | `ALT_TEXT_REQUIRED` | `validation.requireAltText` is on and an image lacks `alt` (empty string is allowed). |
 | `CLI_UNKNOWN_FLAG` | Typo in a flag; unknown flags are rejected on purpose. |

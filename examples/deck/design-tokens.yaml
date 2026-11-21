@@ -1,0 +1,14 @@
+# Design tokens — resolved into global.css at build time
+bg: "#0f1220"
+surface: "#1a1f36"
+text: "#f5f7ff"
+text-muted: "#a6aecd"
+accent: "#f2b705"
+accent-text: "#1a1f36"
+
+font-family: "system-ui, -apple-system, Segoe UI, sans-serif"
+font-size-h1: "3.25rem"
+font-size-body: "1.25rem"
+
+space-lg: "2.5rem"
+radius-md: "12px"

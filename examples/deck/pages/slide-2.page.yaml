@@ -1,0 +1,14 @@
+title: "Deck — Slide 2"
+description: "The second slide of the htmlng fixed-canvas deck example."
+layout:
+  wrapper: true
+  bodyClass: "deck"
+head:
+  meta:
+    - name: "deck-total"
+      content: "2"
+scripts:
+  - src: "assets/deck-nav.js"
+components:
+  - slide
+  - footer

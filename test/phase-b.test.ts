@@ -210,7 +210,7 @@ describe('schema command', () => {
     const spec = json(c);
     expect(spec.version).toBe(1);
     expect(spec.placeholderTypes.map((p: { type: string }) => p.type))
-      .toEqual(['text', 'html', 'image', 'link', 'list', 'bool', 'slot']);
+      .toEqual(['text', 'html', 'image', 'link', 'list', 'bool', 'if', 'unless', 'slot']);
     expect(spec.componentFile.sections.map((s: { name: string }) => s.name)).toEqual(['template', 'css', 'schema']);
   });
 });
