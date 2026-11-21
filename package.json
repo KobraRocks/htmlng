@@ -24,9 +24,14 @@
   "engines": {
     "node": ">=22"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KobraRocks/htmlng.git"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "dev:build": "tsc --watch",
     "start": "node dist/index.js",
     "test": "vitest run",
