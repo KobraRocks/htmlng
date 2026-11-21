@@ -88,7 +88,7 @@ A ~50-line hand-written validator for this dialect would:
 
 ### 2.2 `node-html-parser` is a dead dependency — drop it
 
-`src/validator.ts:1` imports `parse as parseHTML`; it is **never referenced** (validation was rewritten to regex after `issues/new/06-node-html-parser-body-bug.md`). It is nonetheless still listed as a production dependency in `package.json:23` and in `specs/stack.md` §2.1, and §8#7 still claims it will power "HTML-aware diff".
+`src/validator.ts:1` imports `parse as parseHTML`; it is **never referenced** (validation was rewritten to regex after `issues/resolved/06-node-html-parser-body-bug.md`). It is nonetheless still listed as a production dependency in `package.json:23` and in `specs/stack.md` §2.1, and §8#7 still claims it will power "HTML-aware diff".
 
 Keeping a dead parser dependency is worse than neutral: it keeps the parser-bug issue nominally "open", and it misleads an agent reading the stack spec into thinking templates are DOM-validated.
 

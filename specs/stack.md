@@ -2,7 +2,7 @@
 
 > **Status**: draft  
 > **Created**: 2026-07-04  
-> **Updated**: 2026-07-04 (AI-implementer-focused rewrite)  
+> **Updated**: 2026-11-21 (scoping rules and issue paths reconciled with `html-engine.md`)  
 > **References**: [[html-engine]] §11 Open Questions  
 > **Audience**: AI coding agent implementing the engine
 
@@ -43,7 +43,7 @@ npm install js-yaml chokidar diff
 > schema (image/link/slot sub-fields). It is replaced by a hand-rolled validator in
 > `src/schema.ts` (~50 lines) that *does* check sub-fields. `node-html-parser` was already
 > unused — structure validation is regex-based (`src/validator.ts`) because the parser
-> dropped `<body>` on nested sections (see `issues/new/06-node-html-parser-body-bug.md`).
+> dropped `<body>` on nested sections (see `issues/resolved/06-node-html-parser-body-bug.md`).
 >
 > Build/test tooling (`typescript`, `tsx`, `vitest`, `@types/*`) now lives in
 > `devDependencies`, and `package.json` declares `engines.node >= 22`.
@@ -56,19 +56,25 @@ the supported dialect: `type`, `required`, `maxLength`, plus object sub-fields f
 the assembled page is validated with intentional string checks. Templates are not valid
 HTML before rendering, so a DOM parser is the wrong tool (see §7.2).
 
-**No CSS parsing library.** The scoping algorithm (§6.2) is simple string manipulation:
+**No CSS parsing library.** The scoping algorithm (`specs/html-engine.md` §6.2, implemented in
+`src/css.ts`) is string scanning with balanced-brace/parenthesis counters:
 
 ```
-Split CSS rules on }
-For each rule:
-  Split selectors on ,
-  For each selector:
-    If not already prefixed with .className, prepend ".className "
-  Rejoin selectors with ,
-Rejoin rules with }
+Split CSS into top-level blocks on balanced { }
+For each block:
+  If it starts with @keyframes, @font-face or @page, emit it unchanged
+  Else if it starts with another at-rule (@media, @supports, …), scope its inner rules
+  Else it is a rule: scope its selector list, keep the declaration body
+
+For each selector in the list (split on top-level commas only):
+  If it starts with :global(...), unwrap :global(...) and emit it unscoped
+  Otherwise unwrap any :global(...) later in it; only the wrapped compound is exempt
+  If its first compound starts with html, body, :root or :host, emit it unchanged
+  Else if it already starts with .className (word boundary), leave it unchanged
+  Else prepend ".className "
 ```
 
-This is ~30 lines of regex. PostCSS + postcss-selector-parser adds 2 dependencies, ~800KB, and requires the AI to learn a plugin API and AST walker. For the problem at hand (prepend a class prefix to selectors), raw string manipulation is simpler, faster to implement, and has fewer edge cases than the AI might hit learning PostCSS internals.
+This is ~250 lines of plain string scanning. PostCSS + postcss-selector-parser adds 2 dependencies, ~800KB, and requires the AI to learn a plugin API and AST walker. For the problem at hand (prepend a class prefix to selectors, with a few documented escapes), raw string manipulation is simpler, faster to implement, and has fewer edge cases than the AI might hit learning PostCSS internals.
 
 **No templating library.** The `{{type:name}}` syntax is a custom recursive descent parser (~100 lines). Handlebars/Mustache would fight the typed placeholder model. See §4.2.
 
@@ -398,7 +404,7 @@ An AI implementer must verify correctness. The test suite validates:
 |-------|--------------|------|
 | **Component parser** | Splitting `---` sections, extracting template/CSS/schema | `component.test.ts` |
 | **Template engine** | All 7 placeholder types, list iteration, bool conditional, slot recursion | `template.test.ts` |
-| **CSS scoping** | Single selector, multi-selector, already-prefixed skip, empty CSS | `css.test.ts` |
+| **CSS scoping** | Single selector, multi-selector, already-prefixed skip, empty CSS, comments, root selectors, `:global(...)`, `@page`/`@media` at-rules | `css.test.ts` |
 | **Text validator** | Whitelist pass, disallowed tag fail, disallowed attribute fail, block tag fail, `href` preservation | `text-validator.test.ts` |
 | **Validator** | Schema validation, missing required, type mismatch, forbidden tags in template | `validator.test.ts` |
 | **Renderer** | Page assembly, header/section/footer wrapping, default footer, IDs and classes | `renderer.test.ts` |
@@ -476,7 +482,7 @@ Each step is a single file. The AI can implement, test, and verify correctness b
 
 ### 7.1 CSS scoping gotchas
 
-- **`@media` rules**: Component CSS inside an `@media` block gets scoped INSIDE the media query, not outside.
+- **`@media` / `@supports` rules**: Component CSS inside an `@media` block gets scoped INSIDE the media query, not outside.
   ```css
   /* Input (hero component CSS) */
   @media (max-width: 768px) {
@@ -488,9 +494,14 @@ Each step is a single file. The AI can implement, test, and verify correctness b
   }
   ```
   Putting `.hero` before `@media` (e.g. `.hero @media (...) { ... }`) is invalid CSS and will be ignored by browsers.
+- **Document-root selectors**: a `.hero ` prefix could never match `html`/`body`/`:root`/`:host`, so those are emitted unchanged. The test is on the **first compound** only and requires a boundary: `html.dark`, `body > main` and `:root` stay unscoped, while `bodyguard { … }` and the custom element `body-copy { … }` are ordinary element names and still get the prefix.
+- **`:global(...)` escape hatch**: a selector that *begins* with `:global(...)` opts out entirely and the wrapper is unwrapped (`:global(.leaflet-container)` → `.leaflet-container`). A `:global(...)` later in the selector exempts only the wrapped compound: `.card :global(.selected)` → `.hero .card .selected`.
+- **`@page`**: Passes through unchanged, like `@keyframes` and `@font-face` — so a component can declare `@page { size: 1280px 720px; margin: 0 }` without it becoming `.hero @page`. Selectors inside `@media`/`@supports` follow the same root/`:global` rules.
 - **`@keyframes`**: Keyframe names are NOT prefixed. `@keyframes fade { ... }` stays as-is. The animation name referenced in `animation: fade 1s` is also left alone.
 - **`@font-face`**: Not prefixed. Pass through unchanged.
-- **Comments**: `/* comment */` inside rules should be preserved, not stripped.
+- **Comments**: `/* comment */` is preserved rather than stripped. At the start of a rule a comment is emitted between the prefix and the selector (`.hero /* why */ h1`), which is still valid — comments are whitespace to the cascade.
+- **Selector-list splitting**: commas inside parentheses or quoted attribute values (`[data-role="a,b"]`) are not separators; only top-level commas split.
+- **Already-scoped detection**: `.hero` (the component's own class) is left alone, but with a word boundary, so `.hero2` in a component named `hero` is still prefixed.
 
 ### 7.2 HTML parsing caveat: templates are NOT valid HTML
 
@@ -538,7 +549,7 @@ The string checks should run only on the *resolved* HTML. Templates contain raw 
 | §11 item | Library needed? | Why it adds no complexity now |
 |----------|----------------|------------------------------|
 | #1 Nested components | No | Already in the custom template engine's recursive slot resolution |
-| #2 Responsive breakpoints | No | `@media` passthrough in CSS scoping already handles this |
+| #2 Responsive breakpoints | No | `@media` handling in CSS scoping already covers this |
 | #3 Component variants | No | Conditional CSS at build time, no new parsing |
 | #4 `<nav>` support | No | One `if` branch in `renderer.ts` |
 | #5 Multi-page data | No | Extend `data-file.ts` resolution order |
@@ -565,7 +576,7 @@ Test files:      7 .test.ts files
 Templates:       3 scaffold files
 CLI routing:     Map<string, handler> — no framework
 HTML validation: regex string checks (no DOM parser)
-CSS scoping:     Custom string manipulation (~30 lines)
+CSS scoping:     Custom string manipulation (~250 lines, no AST)
 Templating:      Custom recursive descent (~100 lines)
 Error handling:  throw EngineError, catch at CLI boundary
 Caching:         .engine-cache.json with SHA-256 hashes

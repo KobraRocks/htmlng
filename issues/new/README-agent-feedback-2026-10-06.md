@@ -4,7 +4,8 @@
 **Contexte** : construction d'un deck de 4 slides au format 1920×1080 pour un webinaire (charte
 imposée, logos, texte français), avec navigation clavier et export PDF. Session menée de bout en
 bout par un agent, moteur piloté en CLI.
-**Périmètre** : `issues/new/07-…` à `issues/new/17-…`
+**Périmètre** : `issues/resolved/07-…` à `issues/resolved/17-…` (sauf `16-…`, encore ouverte dans
+`issues/new/`)
 
 ## Résumé
 
@@ -29,18 +30,18 @@ l'agent se fait **contre** l'abstraction du produit plutôt qu'avec elle.
 
 | # | Issue | Sévérité | Coût observé |
 | --- | --- | --- | --- |
-| 07 | [`htmlng` tool: `ctx.shell.run is not a function`](07-htmlng-tool-context-shell-run-error.md) | Haute | interface documentée inutilisable (contournement CLI) |
-| 07 | [CSS composant ne peut pas cibler `<body>` / `:root`](07-component-css-cannot-target-body.md) | Haute | cause racine de ~80 % des difficultés de layout |
-| 08 | [Rôles de wrapper positionnels](08-wrapper-semantics-are-positional.md) | Moyenne | 2 itérations perdues sur `section#deck` |
-| 09 | [Aucun conteneur de page](09-no-page-level-container.md) | Haute | grille 2×2 et canvas fixes impossibles à exprimer |
-| 10 | [`<body>` sans identité de page](10-body-has-no-page-identity.md) | Moyenne-Haute | script post-build obligatoire dans `build.sh` |
-| 11 | [Forme des données `list` documentée à l'envers](11-list-data-shape-documented-backwards.md) | Haute | 4 composants remodelés, validation trompeuse |
-| 12 | [`{{image:x}}` dans un attribut corrompt le HTML](12-image-placeholder-in-attribute-corrupts-markup.md) | Moyenne-Haute | image cassée livrée malgré `validate: ok` |
-| 13 | [Scripts de page forcés dans `<head>`](13-page-scripts-forced-into-head.md) | Moyenne | piège `document.body === null`, bug « à moitié silencieux » |
-| 14 | [Pas de conditionnel de champ](14-no-field-level-conditionals.md) | Moyenne | 3 contournements, 1 champ supprimé du schéma |
-| 15 | [Diagnostics : index d'élément, faux positifs, `explain`, cache](15-validation-diagnostics-quick-wins.md) | Basse-Moyenne | 6 correctifs courts, chacun ≥ 1 itération |
+| 07 | [`htmlng` tool: `ctx.shell.run is not a function`](../resolved/07-htmlng-tool-context-shell-run-error.md) | Haute | interface documentée inutilisable (contournement CLI) |
+| 07 | [CSS composant ne peut pas cibler `<body>` / `:root`](../resolved/07-component-css-cannot-target-body.md) | Haute | cause racine de ~80 % des difficultés de layout |
+| 08 | [Rôles de wrapper positionnels](../resolved/08-wrapper-semantics-are-positional.md) | Moyenne | 2 itérations perdues sur `section#deck` |
+| 09 | [Aucun conteneur de page](../resolved/09-no-page-level-container.md) | Haute | grille 2×2 et canvas fixes impossibles à exprimer |
+| 10 | [`<body>` sans identité de page](../resolved/10-body-has-no-page-identity.md) | Moyenne-Haute | script post-build obligatoire dans `build.sh` |
+| 11 | [Forme des données `list` documentée à l'envers](../resolved/11-list-data-shape-documented-backwards.md) | Haute | 4 composants remodelés, validation trompeuse |
+| 12 | [`{{image:x}}` dans un attribut corrompt le HTML](../resolved/12-image-placeholder-in-attribute-corrupts-markup.md) | Moyenne-Haute | image cassée livrée malgré `validate: ok` |
+| 13 | [Scripts de page forcés dans `<head>`](../resolved/13-page-scripts-forced-into-head.md) | Moyenne | piège `document.body === null`, bug « à moitié silencieux » |
+| 14 | [Pas de conditionnel de champ](../resolved/14-no-field-level-conditionals.md) | Moyenne | 3 contournements, 1 champ supprimé du schéma |
+| 15 | [Diagnostics : index d'élément, faux positifs, `explain`, cache](../resolved/15-validation-diagnostics-quick-wins.md) | Basse-Moyenne | 6 correctifs courts, chacun ≥ 1 itération |
 | 16 | [Pas d'export PDF, `vh` non fiable à l'impression](16-no-pdf-export-and-print-vh-mismatch.md) | Moyenne | pipeline PDF hors moteur (captures + Pillow) |
-| 17 | [Pages triées alphabétiquement](17-pages-ordered-alphabetically.md) | Basse | couplage ordre ↔ numérotation des slides |
+| 17 | [Pages triées alphabétiquement](../resolved/17-pages-ordered-alphabetically.md) | Basse | couplage ordre ↔ numérotation des slides |
 
 ## Ce qui fonctionne très bien (à préserver)
 

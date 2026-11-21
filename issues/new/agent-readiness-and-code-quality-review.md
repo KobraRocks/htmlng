@@ -191,7 +191,7 @@ The goal is not more features; it is to make the CLI a **reliable, machine-check
 
 18. **Fix `serve` traversal**: resolve and assert `resolvedPath.startsWith(buildDir + sep)`; add the missing MIME types; bind `127.0.0.1` by default.
 19. **Harden escaping**: `escapeAttr` should escape `&`, `<`, `>`, `"`; reject `javascript:`/`data:` in `href`; validate `slot.data` through the same `text` whitelist.
-20. **Move `typescript`/`tsx`/`vitest`/`@types/*` to `devDependencies`; add `engines.node`; drop `node-html-parser`** (unused) and close `issues/new/06-node-html-parser-body-bug.md`.
+20. **Move `typescript`/`tsx`/`vitest`/`@types/*` to `devDependencies`; add `engines.node`; drop `node-html-parser`** (unused) and close `issues/resolved/06-node-html-parser-body-bug.md`.
 21. **Add `test/cli.test.ts`** covering exit codes and stdout/stderr for every command — the regression net for Phase A/B. Then add tests for `config`, `hasher`, `propagation`, `scaffold`, `data-file`, `page`, `schema`.
 22. **Add CI** (`typecheck` + `test` + a build smoke test) and a formatter/linter so contributed code stays uniform.
 

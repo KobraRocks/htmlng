@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { COMMAND_NAMES, HELP } from '../src/cli.js';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -20,6 +20,40 @@ const MACHINE_PATH = /\/home\/[A-Za-z0-9._-]+\/|(?:^|\s)~\/[A-Za-z0-9._-]+\//;
 function machinePathHits(relPath: string): string[] {
   const lines = readFileSync(join(ROOT, relPath), 'utf-8').split('\n');
   return lines.flatMap((line, i) => (MACHINE_PATH.test(line) ? [`${relPath}:${i + 1}: ${line.trim()}`] : []));
+}
+
+/** Directories whose Markdown is not repository documentation. */
+const NOT_DOCS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
+
+/** Every Markdown file under the repository root, as paths relative to it. */
+function markdownFiles(dir: string, found: string[] = []): string[] {
+  for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    if (NOT_DOCS.has(entry.name)) continue;
+    const rel = join(dir, entry.name);
+    if (entry.isDirectory()) markdownFiles(rel, found);
+    else if (entry.name.endsWith('.md')) found.push(rel);
+  }
+  return found;
+}
+
+/** `[label](target)` / `![alt](target)` destinations that only resolve inside the repo. */
+const RELATIVE_LINK = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+
+/** A link to a repository file that does not exist, reported with its doc and line. */
+function brokenLinkHits(relPath: string): string[] {
+  // Fenced blocks are samples, not prose links the reader is meant to follow.
+  // Blank them line for line so reported line numbers still match the file.
+  const text = readFileSync(join(ROOT, relPath), 'utf-8').replace(/```[\s\S]*?```/g, (block) =>
+    block.replace(/[^\n]/g, ''),
+  );
+  const lines = text.split('\n');
+  return lines.flatMap((line, i) =>
+    [...line.matchAll(RELATIVE_LINK)]
+      .map((m) => m[1].replace(/^<|>$/g, ''))
+      .filter((target) => !/^(?:https?:|mailto:|#|\/)/.test(target))
+      .filter((target) => !existsSync(resolve(ROOT, dirname(relPath), target.split('#')[0])))
+      .map((target) => `${relPath}:${i + 1}: ${target}`),
+  );
 }
 
 /** Command tokens from README's command table: `| `htmlng <cmd> ...` |` */
@@ -78,5 +112,10 @@ describe('docs conformance', () => {
   it('docs contain no machine-specific absolute paths', () => {
     const hits = DOC_FILES.flatMap(machinePathHits);
     expect(hits, `paths that only resolve on one machine:\n${hits.join('\n')}`).toEqual([]);
+  });
+
+  it('relative Markdown links point at files that exist', () => {
+    const hits = markdownFiles('.').flatMap(brokenLinkHits);
+    expect(hits, `links to moved or deleted files:\n${hits.join('\n')}`).toEqual([]);
   });
 });
