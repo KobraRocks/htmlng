@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import type { Component, PlaceholderSchema } from './types.js';
-import { EngineError } from './types.js';
+import { EngineError, PLACEHOLDER_TYPES } from './types.js';
 
 const COMPONENT_SUFFIX = '.component.html';
 const SECTION_SEPARATOR = /^[ \t]*---[ \t]*$/;
@@ -77,7 +77,7 @@ export function parseComponent(filePath: string): Component {
   }
 
   // Validate schema entries have valid types
-  const validTypes = new Set(['text', 'html', 'image', 'link', 'list', 'bool', 'slot']);
+  const validTypes = new Set<string>(PLACEHOLDER_TYPES);
   for (const [name, rawDef] of Object.entries(schema)) {
     if (typeof rawDef !== 'object' || rawDef === null || Array.isArray(rawDef)) {
       throw new EngineError(
@@ -101,7 +101,7 @@ export function parseComponent(filePath: string): Component {
       throw new EngineError(
         isNestedItemSchema
           ? `Schema entry "${name}" has no "type" — nested item schemas are not supported`
-          : `Invalid placeholder type "${String(def.type)}" for "${name}". Must be one of: ${[...validTypes].join(', ')}`,
+          : `Invalid placeholder type "${String(def.type)}" for "${name}". Must be one of: ${PLACEHOLDER_TYPES.join(', ')}`,
         filePath,
         name,
         'ERROR',

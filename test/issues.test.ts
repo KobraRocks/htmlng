@@ -343,3 +343,18 @@ describe('issue 17 — natural page ordering', () => {
     expect(outText(c).trim().split('\n')).toEqual(['slide-1', 'slide-2', 'slide-10']);
   });
 });
+
+describe('issue 8 — one canonical placeholder type list', () => {
+  it('parses a schema for every advertised schema type', () => {
+    const advertised = FORMAT_SPEC.placeholderTypes
+      .filter((p) => !(p as { guardOnly?: boolean }).guardOnly)
+      .map((p) => p.type)
+      .sort();
+    expect(advertised).toEqual([...FORMAT_SPEC.schemaTypes].sort());
+
+    for (const type of advertised) {
+      component('sec', { schema: `{"value":{"type":"${type}"}}` });
+      expect(() => parseComponent(join(dir, 'components', 'sec.component.html'))).not.toThrow();
+    }
+  });
+});

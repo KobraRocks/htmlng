@@ -1,3 +1,5 @@
+import { PLACEHOLDER_TYPES } from './types.js';
+
 /**
  * Machine-readable description of every file format the engine consumes.
  * Emitted by `htmlng schema` so an agent can self-check before invoking the
@@ -16,7 +18,7 @@ export const FORMAT_SPEC = {
     ],
     sectionOrder: ['template', 'css?', 'schema'],
     schemaEntry: {
-      type: 'text | html | image | link | list | bool | slot',
+      type: PLACEHOLDER_TYPES.join(' | '),
       required: 'boolean, optional (default false)',
       maxLength: 'number, optional (text/html only)',
     },
@@ -40,7 +42,7 @@ export const FORMAT_SPEC = {
     { type: 'slot', syntax: '{{slot:name}}', dataShape: '{ component, data? }', notes: 'Embeds another component inline. Max depth 3; cycles rejected. Emits an element — never use it as an attribute value.' },
   ],
   /** The only valid values for a schema entry's `type` (guards like if/unless are not listed). */
-  schemaTypes: ['text', 'html', 'image', 'link', 'list', 'bool', 'slot'],
+  schemaTypes: PLACEHOLDER_TYPES,
   textFieldWhitelist: {
     tags: ['strong', 'b', 'em', 'i', 'a', 'code', 'br', 'mark', 'del', 'ins', 'sub', 'sup', 'small'],
     attributes: { a: ['href'] },

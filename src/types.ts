@@ -7,9 +7,19 @@ export interface EngineConfig {
   validation: { strict: boolean; requireAltText: boolean };
 }
 
+/**
+ * Placeholder types a component schema may declare, in documentation order.
+ * Single source of truth: `PlaceholderType` is derived from it, and the parser
+ * plus `htmlng schema` both consume it. Template-only guards (`if`/`unless`)
+ * are deliberately absent.
+ */
+export const PLACEHOLDER_TYPES = ['text', 'html', 'image', 'link', 'list', 'bool', 'slot'] as const;
+
+export type PlaceholderType = (typeof PLACEHOLDER_TYPES)[number];
+
 export interface PlaceholderSchema {
   [placeholderName: string]: {
-    type: 'text' | 'html' | 'image' | 'link' | 'list' | 'bool' | 'slot';
+    type: PlaceholderType;
     required?: boolean;
     maxLength?: number;
   };
