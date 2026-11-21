@@ -18,6 +18,33 @@ Infer the repo from `git remote -v`; `gh` does this automatically when run insid
 
 File issues only into the user's own repo: `KobraRocks/htmlng`. Never file into `mattpocock/skills` (the repo these skills come from) unless the user owns it. In a fork, `gh` can default to the upstream parent, so before the first `gh issue create` of a session, check the target with `gh repo view --json nameWithOwner` and confirm it with the user if it is not their repo.
 
+## Acceptance criteria
+
+Write ACs as checks a fresh agent can run. Before filing an issue:
+
+- [ ] **Jointly satisfiable.** Every pair of ACs can be true at once. If two pull
+      against each other, say which one wins or split the other out now.
+- [ ] **Behaviour names the command and the observable result.** Say what the user
+      sees and the exit code, e.g. "`htmlng build` prints each warning once and
+      exits 0".
+- [ ] **Architecture is not behaviour.** "Same code path" describes structure;
+      "same output" describes behaviour. Never let one phrase stand in for the
+      other.
+- [ ] **Deferred work has a ticket.** An AC that is split or deferred becomes a
+      linked follow-up issue before the parent closes.
+
+Worked example — #11: AC2 required `validate`, `render`, `build` and
+`serve --watch` to report diagnostics "through the same code path", while AC5
+required "no output-format or exit-code change for any command". Read as
+architecture, AC2 was satisfied by the shared module; read as behaviour, it
+required `serve --watch` to print warnings it had always dropped, which became
+#13. The pair was not jointly satisfiable as written. The rewrite separates them:
+
+- Architecture AC2: "De-duplication, orphan warnings and page attribution are
+  implemented once in `src/diagnostics.ts`; the CLI and renderer call it."
+- Behaviour AC5: "`validate`, `render` and `build` keep their current output and
+  exit codes; `serve --watch` reporting is split into #13."
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
